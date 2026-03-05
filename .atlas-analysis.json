@@ -1,0 +1,106 @@
+{
+  "projectType": "framework",
+  "projectName": "Stock Request",
+  "projectDescription": "Odoo framework extension for managing internal stock requests with procurement automation and multi-module integration",
+  "theme": "aspen",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "configuration",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/stock-requests",
+              "concepts/stock-request-orders",
+              "concepts/workflow",
+              "concepts/allocation"
+            ]
+          },
+          {
+            "group": "Modules",
+            "pages": [
+              "modules/overview",
+              "modules/core",
+              "modules/kanban",
+              "modules/purchase",
+              "modules/mrp",
+              "modules/bom",
+              "modules/direction",
+              "modules/submit",
+              "modules/tier-validation",
+              "modules/return-request"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/user-permissions",
+              "guides/creating-requests",
+              "guides/managing-orders",
+              "guides/procurement-rules",
+              "guides/integrations"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Models",
+            "pages": [
+              "api/stock-request",
+              "api/stock-request-order",
+              "api/stock-request-allocation",
+              "api/stock-request-abstract"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "api/stock-move",
+              "api/stock-picking",
+              "api/procurement-group"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Internal stock request management with draft/open/done/cancel workflow",
+    "Stock Request Orders for grouping and kanban-style management",
+    "Automatic procurement rule evaluation and transfer generation",
+    "Purchase Order integration for automatic PO creation",
+    "Manufacturing Order (MRP) integration for production requests",
+    "BOM integration for component explosion",
+    "Tier validation for approval workflows",
+    "Stock return request handling"
+  ],
+  "publicApiSurface": [
+    "stock.request",
+    "stock.request.order",
+    "stock.request.allocation",
+    "stock.request.abstract",
+    "stock.request.kanban",
+    "action_confirm()",
+    "action_cancel()",
+    "action_draft()",
+    "action_done()",
+    "_prepare_procurement_values()",
+    "_action_launch_procurement_rule()"
+  ]
+}
