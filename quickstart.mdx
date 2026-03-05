@@ -1,80 +1,519 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Create your first stock request in minutes
 ---
 
-## Get started in three steps
+This guide will walk you through creating and managing your first stock request using both the GUI and programmatically.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, ensure:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+- Stock Request module is installed
+- You have at least "Stock Request / User" permissions
+- At least one warehouse is configured
+- You have products in your system
+
+## Create Your First Stock Request (GUI)
+
+<Steps>
+  <Step title="Navigate to Stock Requests">
+    From the main menu, go to **Stock Requests → Stock Requests**.
+  </Step>
+  
+  <Step title="Create New Request">
+    Click the **Create** button to open a new stock request form.
+  </Step>
+  
+  <Step title="Fill in Basic Information">
+    Enter the following details:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    - **Product**: Select the product you want to request
+    - **Quantity**: Enter the quantity needed
+    - **Unit of Measure**: Automatically set based on product (can be changed if needed)
+    - **Warehouse**: Select the warehouse (auto-filled with your default)
+    - **Location**: Choose the destination location (defaults to warehouse stock location)
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    <Note>
+    The **Requested By** field is automatically set to your user account. The **Expected Date** is set to the current date/time.
+    </Note>
+  </Step>
+  
+  <Step title="Configure Additional Options (Optional)">
+    Expand additional sections to configure:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    - **Procurement Group**: Group related moves together
+    - **Route**: Specify a specific procurement route (optional)
+    - **Shipping Policy**: 
+      - "Receive each product when available" (default)
+      - "Receive all products at once"
+  </Step>
+  
+  <Step title="Save as Draft">
+    Click **Save**. Your request is now in **Draft** state with a unique sequence number (e.g., SR001).
+    
+    <Tip>
+    You can edit or delete the request while it's in draft state.
+    </Tip>
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Confirm the Request
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Once your request is ready, confirm it to trigger the procurement process:
 
-### Step 3: Go live
+<Steps>
+  <Step title="Open Your Draft Request">
+    From the stock requests list, open the draft request you created.
+  </Step>
+  
+  <Step title="Click Confirm">
+    Click the **Confirm** button at the top of the form.
+  </Step>
+  
+  <Step title="System Processing">
+    The system will:
+    
+    1. Change state from **Draft** to **Open (In Progress)**
+    2. Evaluate procurement rules for the destination location
+    3. Create stock moves based on available routes
+    4. Generate transfers (pickings) if needed
+    
+    <CodeGroup>
+    ```python Confirmation Logic
+    # From stock_request.py:264-270
+    def _action_confirm(self):
+        self._action_launch_procurement_rule()
+        self.filtered(lambda x: x.state != "done").write({"state": "open"})
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    def action_confirm(self):
+        self._action_confirm()
+        return True
+    ```
+    
+    ```python Procurement Trigger
+    # From stock_request.py:381-440
+    def _action_launch_procurement_rule(self):
+        """
+        Launch procurement group run method with required/custom fields
+        generated by a stock request. Procurement group will launch 
+        '_run_move', '_run_buy' or '_run_manufacture' depending on 
+        the stock request product rule.
+        """
+        # If stock is available, use it first
+        if request.company_id.stock_request_check_available_first:
+            if product has sufficient free_qty:
+                request._action_use_stock_available()
+                continue
+        
+        # Otherwise, trigger procurement
+        procurements.append(
+            self.env["procurement.group"].Procurement(
+                request.product_id,
+                request.product_uom_qty,
+                request.product_uom_id,
+                request.location_id,
+                request.name,
+                request.name,
+                self.env.company,
+                values,
+            )
+        )
+        self.env["procurement.group"].run(procurements)
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="View Results">
+    After confirmation, you'll see:
+    
+    - **State**: Changed to "In progress"
+    - **Transfers**: Button showing number of related pickings
+    - **Quantities**:
+      - Qty In Progress: Quantity being processed
+      - Qty Done: Quantity already transferred
+      - Qty Cancelled: Quantity cancelled
+  </Step>
+</Steps>
 
-## Next steps
+## View and Process Transfers
 
-Now that you have your docs running, explore these key features:
+After confirmation, stock requests generate transfers that need to be processed:
+
+<Steps>
+  <Step title="Access Transfers">
+    From your stock request form, click the **Transfers** smart button at the top.
+  </Step>
+  
+  <Step title="View Transfer Details">
+    You'll see a list of all transfers (pickings) generated by this request.
+    
+    <Note>
+    Depending on your warehouse configuration and procurement rules, you may see:
+    - Internal transfers
+    - Purchase orders (if stock_request_purchase is installed)
+    - Manufacturing orders (if stock_request_mrp is installed)
+    </Note>
+  </Step>
+  
+  <Step title="Process the Transfer">
+    Warehouse operators will process the transfer:
+    
+    1. Open the transfer
+    2. Click **Check Availability** (if needed)
+    3. Click **Validate** to complete the transfer
+  </Step>
+  
+  <Step title="Request Automatically Updates">
+    As transfers are completed:
+    
+    - **Qty Done** increases
+    - **Qty In Progress** decreases
+    - When all quantities are fulfilled, state changes to **Done**
+    
+    <CodeGroup>
+    ```python Automatic Completion
+    # From stock_request.py:290-309  
+    def check_done(self):
+        precision = self.env["decimal.precision"].precision_get(
+            "Product Unit of Measure"
+        )
+        for request in self:
+            allocated_qty = sum(
+                request.allocation_ids.mapped("allocated_product_qty")
+            )
+            qty_done = request.product_id.uom_id._compute_quantity(
+                allocated_qty, request.product_uom_id
+            )
+            if (
+                float_compare(
+                    qty_done, request.product_uom_qty, 
+                    precision_digits=precision
+                ) >= 0
+            ):
+                request.action_done()
+    ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Create a Stock Request Programmatically
+
+You can also create stock requests via Python code or XML-RPC:
+
+<CodeGroup>
+```python Python (Internal)
+# Create a stock request
+stock_request = env['stock.request'].create({
+    'product_id': product.id,
+    'product_uom_qty': 10.0,
+    'product_uom_id': product.uom_id.id,
+    'warehouse_id': warehouse.id,
+    'location_id': location.id,
+    'expected_date': fields.Datetime.now(),
+    'picking_policy': 'direct',
+})
+
+# Confirm the request
+stock_request.action_confirm()
+
+# Check status
+print(f"Request {stock_request.name} is {stock_request.state}")
+print(f"Transfers: {stock_request.picking_count}")
+```
+
+```python XML-RPC Example
+import xmlrpc.client
+
+url = 'http://localhost:8069'
+db = 'your_database'
+username = 'admin'
+password = 'admin'
+
+# Authenticate
+common = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/common')
+uid = common.authenticate(db, username, password, {})
+
+# Connect to object endpoint
+models = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/object')
+
+# Create stock request
+request_id = models.execute_kw(
+    db, uid, password,
+    'stock.request', 'create',
+    [{
+        'product_id': 1,
+        'product_uom_qty': 5.0,
+        'warehouse_id': 1,
+        'location_id': 8,
+    }]
+)
+
+# Confirm the request
+models.execute_kw(
+    db, uid, password,
+    'stock.request', 'action_confirm',
+    [[request_id]]
+)
+
+print(f"Created and confirmed request ID: {request_id}")
+```
+
+```python Using OdooRPC Library
+import odoorpc
+
+# Connect to Odoo
+odoo = odoorpc.ODOO('localhost', port=8069)
+odoo.login('your_database', 'admin', 'admin')
+
+# Get models
+StockRequest = odoo.env['stock.request']
+Product = odoo.env['product.product']
+
+# Find a product
+product_id = Product.search([('name', '=', 'Office Chair')])[0]
+
+# Create and confirm request
+request = StockRequest.create({
+    'product_id': product_id,
+    'product_uom_qty': 3.0,
+    'warehouse_id': 1,
+    'location_id': 8,
+})
+
+request.action_confirm()
+
+print(f"Request {request.name} created and confirmed")
+print(f"State: {request.state}")
+print(f"Pickings: {request.picking_count}")
+```
+</CodeGroup>
+
+## Understanding Request States
+
+Stock requests follow a defined lifecycle:
+
+<CodeGroup>
+```python State Definition
+# From stock_request.py:23-36
+state = fields.Selection(
+    selection=[
+        ("draft", "Draft"),
+        ("open", "In progress"),
+        ("done", "Done"),
+        ("cancel", "Cancelled"),
+    ],
+    string="Status",
+    copy=False,
+    default="draft",
+    index=True,
+    readonly=True,
+    tracking=True,
+)
+```
+</CodeGroup>
+
+### State Transitions
+
+<Steps>
+  <Step title="Draft → Open">
+    Click **Confirm** button
+    
+    - Triggers procurement rules
+    - Creates stock moves and transfers
+    - Cannot be edited (only cancelled)
+  </Step>
+  
+  <Step title="Open → Done">
+    Automatic when all quantities are fulfilled
+    
+    - All transfers completed
+    - Full quantity received at destination
+    - Cannot be modified
+  </Step>
+  
+  <Step title="Draft/Open → Cancelled">
+    Click **Cancel** button
+    
+    - Cancels all pending stock moves
+    - Request is archived
+    - Cannot be reopened (create new request instead)
+    
+    <CodeGroup>
+    ```python Cancel Logic
+    # From stock_request.py:276-279
+    def action_cancel(self):
+        self.sudo().mapped("move_ids")._action_cancel()
+        self.write({"state": "cancel"})
+        return True
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Any State → Draft">
+    Click **Set to Draft** button (if available)
+    
+    - Only available in some states
+    - Removes allocations
+    - Allows editing again
+  </Step>
+</Steps>
+
+## Advanced Example: Stock Request with Procurement Group
+
+Group multiple requests together for unified tracking:
+
+```python
+# Create a procurement group
+procurement_group = env['procurement.group'].create({
+    'name': 'Office Furniture Request 2024-03',
+})
+
+# Create multiple requests in the same group
+products = [
+    {'product': 'Office Chair', 'qty': 5},
+    {'product': 'Desk', 'qty': 3},
+    {'product': 'Monitor', 'qty': 10},
+]
+
+for item in products:
+    product = env['product.product'].search(
+        [('name', '=', item['product'])], limit=1
+    )
+    
+    stock_request = env['stock.request'].create({
+        'product_id': product.id,
+        'product_uom_qty': item['qty'],
+        'warehouse_id': warehouse.id,
+        'location_id': location.id,
+        'procurement_group_id': procurement_group.id,
+    })
+    
+    stock_request.action_confirm()
+
+print(f"Created {len(products)} requests in group {procurement_group.name}")
+```
+
+## Common Operations
+
+### Cancel a Request
+
+```python
+# Cancel if something goes wrong
+stock_request.action_cancel()
+```
+
+<Warning>
+Cancelling a request also cancels all related pending stock moves. Completed transfers are not reversed.
+</Warning>
+
+### Check Request Progress
+
+```python
+# Check quantities
+print(f"Requested: {stock_request.product_uom_qty}")
+print(f"In Progress: {stock_request.qty_in_progress}")
+print(f"Done: {stock_request.qty_done}")
+print(f"Cancelled: {stock_request.qty_cancelled}")
+
+# Check transfers
+for picking in stock_request.picking_ids:
+    print(f"Transfer {picking.name}: {picking.state}")
+```
+
+### View All Your Requests
+
+```python
+# Get all requests by current user
+my_requests = env['stock.request'].search([
+    ('requested_by', '=', env.user.id)
+])
+
+for request in my_requests:
+    print(f"{request.name}: {request.product_id.name} "
+          f"- {request.state}")
+```
+
+## Validation and Constraints
+
+Stock requests include several validations:
+
+<CodeGroup>
+```python Quantity Validation
+# From stock_request.py:114-124
+@api.constrains("state", "product_qty")
+def _check_qty(self):
+    for rec in self:
+        if rec.state == "draft" and rec.product_qty <= 0:
+            raise ValidationError(
+                _("Stock Request product quantity has to be "
+                  "strictly positive.")
+            )
+        elif rec.state != "draft" and rec.product_qty < 0:
+            raise ValidationError(
+                _("Stock Request product quantity cannot be negative.")
+            )
+```
+
+```python Company Consistency  
+# From stock_request_abstract.py:149-192
+@api.constrains(
+    "company_id", "product_id", "warehouse_id", 
+    "location_id", "route_id"
+)
+def _check_company_constrains(self):
+    """Check if the related models have the same company"""
+    for rec in self:
+        if (
+            rec.product_id.company_id
+            and rec.product_id.company_id != rec.company_id
+        ):
+            raise ValidationError(
+                _("You have entered a product that is assigned "
+                  "to another company.")
+            )
+        # Similar checks for location, warehouse, and route...
+```
+
+```python UoM Category Validation
+# From stock_request_abstract.py:194-208  
+@api.constrains("product_id")
+def _check_product_uom(self):
+    """Check if the UoM has the same category as the
+    product standard UoM"""
+    if any(
+        request.product_id.uom_id.category_id != 
+        request.product_uom_id.category_id
+        for request in self
+    ):
+        raise ValidationError(
+            _("You have to select a product unit of measure in the "
+              "same category than the default unit of measure of "
+              "the product")
+        )
+```
+</CodeGroup>
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="API Reference" icon="code" href="/api/stock-request">
+    Explore the complete Stock Request API
+  </Card>
+  
+  <Card title="Procurement Rules" icon="star" href="/guides/procurement-rules">
+    Learn about routes, procurement rules, and integrations
+  </Card>
+  
+  <Card title="User Permissions" icon="shield" href="/guides/user-permissions">
+    Configure user groups and access control
+  </Card>
+  
+  <Card title="Extensions" icon="puzzle-piece" href="/extensions">
+    Discover optional modules to extend functionality
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Tip>
+You've completed the quick start! You now know how to create, confirm, and track stock requests in your Odoo system.
+</Tip>

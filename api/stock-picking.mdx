@@ -1,0 +1,123 @@
+---
+title: "stock.picking Extension"
+description: "Stock Request extensions to the stock.picking model"
+---
+
+## Overview
+
+The Stock Request module extends Odoo's standard `stock.picking` model to provide visibility into stock requests at the picking level. This extension aggregates stock request information from the individual moves within a picking and provides a convenient action to view all related requests.
+
+**Base Model**: `stock.picking`
+
+**Purpose**: Aggregate and display stock requests associated with a picking operation, providing quick access to request details from the picking form.
+
+## Added Fields
+
+<ParamField path="stock_request_ids" type="One2many" computed>
+  Collection of all stock requests associated with this picking's moves. This field aggregates requests from all moves in the picking, providing a picking-level view of related requests.
+  
+  - **Comodel**: `stock.request`
+  - **Compute Method**: `_compute_stock_request_ids`
+</ParamField>
+
+<ParamField path="stock_request_count" type="Integer" computed>
+  The total number of unique stock requests associated with this picking. Used to display a badge or counter in the user interface.
+  
+  - **Compute Method**: `_compute_stock_request_ids`
+</ParamField>
+
+## Added Methods
+
+### _compute_stock_request_ids()
+
+Computes both the stock requests and the count of requests associated with this picking by aggregating data from all moves.
+
+**Dependencies**: `move_ids`
+
+```python
+@api.depends("move_ids")
+def _compute_stock_request_ids(self):
+    for rec in self:
+        rec.stock_request_ids = rec.move_ids.mapped("stock_request_ids")
+        rec.stock_request_count = len(rec.stock_request_ids)
+```
+
+<Info>
+  This method traverses the relationship: picking → moves → allocations → requests, flattening the result into a single list of unique requests.
+</Info>
+
+### action_view_stock_request()
+
+Opens a view displaying all stock requests associated with this picking. The view adapts based on the number of requests found.
+
+**Returns**: `dict` - Action dictionary for the window action
+
+```python
+def action_view_stock_request(self):
+    """
+    :return dict: dictionary value for created view
+    """
+    action = self.env["ir.actions.act_window"]._for_xml_id(
+        "stock_request.action_stock_request_form"
+    )
+
+    requests = self.mapped("stock_request_ids")
+    if len(requests) > 1:
+        action["domain"] = [("id", "in", requests.ids)]
+    elif requests:
+        action["views"] = [
+            (self.env.ref("stock_request.view_stock_request_form").id, "form")
+        ]
+        action["res_id"] = requests.id
+    return action
+```
+
+<Note>
+  **Behavior**:
+  - **Multiple requests**: Opens a list view with all requests
+  - **Single request**: Opens the form view for that specific request
+  - **No requests**: Returns empty action (no records to display)
+</Note>
+
+## User Interface Integration
+
+This extension is typically paired with UI elements in the picking form view:
+
+- **Smart button**: Displays the count of stock requests and opens the request view when clicked
+- **Field visibility**: Shows which requests are being fulfilled by this picking
+
+```python
+# Example smart button configuration (in XML view)
+<button name="action_view_stock_request"
+        type="object"
+        class="oe_stat_button"
+        icon="fa-list">
+    <field name="stock_request_count" widget="statinfo" 
+           string="Requests"/>
+</button>
+```
+
+## Relationships
+
+**To Stock Request**: Indirectly connected through moves
+- Picking → Move (`move_ids`)
+- Move → Allocation (`allocation_ids`)
+- Allocation → Stock Request (`stock_request_id`)
+
+**To Stock Move**: Direct one-to-many relationship through standard `move_ids` field
+
+## Use Cases
+
+1. **Request Tracking**: View all stock requests being fulfilled by a specific picking operation
+2. **Order Fulfillment**: Verify which customer or internal requests are satisfied by a delivery
+3. **Warehouse Operations**: Allow warehouse staff to see request details without leaving the picking interface
+4. **Reporting**: Aggregate request data at the picking level for analysis and reporting
+
+## Example Workflow
+
+1. Stock requests are created for products
+2. Moves are generated and allocated to fulfill the requests
+3. Moves are grouped into a picking
+4. The picking shows all related requests via `stock_request_ids`
+5. Users click the smart button to view request details
+6. When picking is validated, moves are marked done and requests are updated

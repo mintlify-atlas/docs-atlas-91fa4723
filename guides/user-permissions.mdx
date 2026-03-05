@@ -1,0 +1,130 @@
+---
+title: User Permissions
+description: Configure user groups and access control for Stock Requests
+icon: shield-check
+---
+
+The Stock Request module implements a role-based access control system with two primary user groups that determine what users can see and do.
+
+## User Groups
+
+The module defines two main security groups:
+
+### Stock Request / User
+
+This is the standard user role with limited permissions:
+
+- **Read Access**: Can see their own Stock Requests and others they've been granted permission to follow (via message followers)
+- **Write Access**: Can create and update only their own Stock Requests
+- **Create Access**: Can create new Stock Requests
+- **Delete Access**: Can only delete their own Stock Requests in draft state
+
+<Note>
+Users in this group automatically get the base user permissions but do not have access to all stock operations.
+</Note>
+
+### Stock Request / Manager
+
+This is the manager role with full permissions:
+
+- **Full Access**: Can fully manage all Stock Requests across the system
+- **Read/Write/Create/Delete**: Complete control over all Stock Request records
+- **Implied Groups**: Also includes Stock Request User and Stock User permissions
+
+<Warning>
+The Manager group has no domain restrictions - managers can access and modify all Stock Requests in the system regardless of who created them.
+</Warning>
+
+## Setting Up User Permissions
+
+<Steps>
+  <Step title="Access User Settings">
+    Navigate to Settings → Users & Companies → Users
+  </Step>
+  
+  <Step title="Select the User">
+    Choose the user you want to configure and click to edit their record
+  </Step>
+  
+  <Step title="Assign Stock Request Group">
+    In the Access Rights tab, find the Stock Request section and select:
+    - **User** for standard request creators
+    - **Manager** for administrators who need full access
+  </Step>
+  
+  <Step title="Save Changes">
+    Click Save to apply the new permissions. The user will need to log out and back in for changes to take effect.
+  </Step>
+</Steps>
+
+## Access Control Rules
+
+The module implements several record rules that enforce the permission model:
+
+### Multi-Company Rule
+
+Applies to all users:
+```python
+['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]
+```
+
+This ensures users can only access Stock Requests from their assigned companies.
+
+### User-Level Rules
+
+**For Stock Request Users:**
+- Full CRUD operations on own requests: `[('requested_by', '=', user.id)]`
+- Read-only access to followed requests: `['|', ('requested_by', '=', user.id), ('message_partner_ids', 'in', [user.partner_id.id])]`
+
+**For Stock Request Managers:**
+- No domain restrictions - can access all records
+
+<Tip>
+To give a user read access to specific requests without making them the owner, add them as followers using the "Add Followers" feature in the chatter on the Stock Request form.
+</Tip>
+
+## Model Access Rights
+
+The security matrix defines the following access levels:
+
+| Model | User Read | User Write | User Create | User Delete | Manager Read | Manager Write | Manager Create | Manager Delete |
+|-------|-----------|------------|-------------|-------------|--------------|---------------|----------------|----------------|
+| Stock Request | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Stock Request Allocation | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Stock Request Order | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ |
+| Stock Location | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| Stock Rule | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| Stock Warehouse | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| Stock Move | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+
+<Note>
+Stock Request Users cannot delete Stock Request Orders - only Managers have this permission.
+</Note>
+
+## Security Best Practices
+
+<Card title="Principle of Least Privilege" icon="shield">
+Assign users the minimum level of access needed to perform their job functions. Most users should have the "User" role, with "Manager" reserved for supervisors.
+</Card>
+
+<Card title="Use Followers for Collaboration" icon="users">
+Instead of making everyone a Manager, use the follower system to give specific users visibility into requests they need to monitor.
+</Card>
+
+<Card title="Review Permissions Regularly" icon="clock">
+Periodically audit user permissions to ensure they remain appropriate as roles change within your organization.
+</Card>
+
+## Company Constraints
+
+All Stock Request models enforce company constraints:
+
+- Users can only access requests from their assigned companies
+- Related models (warehouse, location, routes) must belong to the same company as the request
+- These constraints prevent cross-company data leakage in multi-company environments
+
+## Next Steps
+
+- Learn how to [create stock requests](/guides/creating-requests)
+- Understand [managing orders](/guides/managing-orders)
+- Configure [procurement rules](/guides/procurement-rules)

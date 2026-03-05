@@ -1,0 +1,167 @@
+---
+title: Stock Request (Core)
+description: Internal request system for stock transfers with procurement integration
+---
+
+The Stock Request module allows users to request products that are frequently stocked by the company to be transferred to their chosen location. This core module provides the foundation for the entire Stock Request framework.
+
+## Overview
+
+This module enables internal stock requests that integrate with Odoo's procurement system. When a stock request is confirmed, it is automatically evaluated using the procurement rules for the selected location, potentially triggering transfers, purchase orders, or manufacturing orders.
+
+## Key Features
+
+- **Internal Stock Requests**: Request stock transfers for products to specific locations
+- **Procurement Integration**: Automatic evaluation using procurement rules upon confirmation
+- **Stock Request Orders**: Group multiple requests together
+- **Transfer Tracking**: Access related transfers directly from stock requests
+- **Access Control**: User and Manager roles with different permission levels
+- **Automatic Cancellation**: Cancel pending stock moves when requests are cancelled
+
+## Dependencies
+
+<Note>
+This module has minimal dependencies and only requires the core `stock` module.
+</Note>
+
+```python
+"depends": ["stock"]
+```
+
+## Installation
+
+1. Install the module from Apps:
+   ```bash
+   pip install odoo-addon-stock-request
+   ```
+
+2. Update the app list in Odoo
+
+3. Search for "Stock Request" and click Install
+
+## Configuration
+
+### Access Rights
+
+Users must be assigned to one of the following security groups:
+
+#### Stock Request / User
+
+- Can see their own Stock Requests
+- Can see Stock Requests they're granted permission to follow
+- Can create and update only their own Stock Requests
+
+#### Stock Request / Manager
+
+- Full management access to all Stock Requests
+- Can configure settings
+- Can manage all users' requests
+
+### Settings
+
+To configure the module:
+
+1. Go to **Stock Requests > Settings**
+2. Configure module parameters as needed
+
+## Usage
+
+### Creating a Stock Request
+
+1. Navigate to **Stock Requests > Stock Requests**
+2. Click **Create**
+3. Fill in the required fields:
+   - **Product**: Select the product to request
+   - **Quantity**: Enter the requested quantity
+   - **Location**: Choose the destination location
+4. Click **Confirm**
+
+<Info>
+Upon confirmation, the request is evaluated using procurement rules for the selected location.
+</Info>
+
+### Viewing Transfers
+
+When transfers are created from a stock request:
+
+1. Open the Stock Request
+2. Click the **Transfers** button
+3. View all related stock moves and pickings
+
+### Cancelling a Request
+
+When you cancel a Stock Request:
+
+- All related pending stock moves are automatically cancelled
+- Completed transfers remain unchanged
+
+<Warning>
+Cancelling a stock request cannot be undone. Ensure this is the intended action.
+</Warning>
+
+## Technical Details
+
+### Module Information
+
+- **Technical Name**: `stock_request`
+- **Version**: 18.0.1.1.3
+- **License**: LGPL-3
+- **Category**: Warehouse Management
+- **Author**: ForgeFlow, OCA
+- **Maintainers**: LoisRForgeFlow, etobella
+
+### Data Files
+
+The module includes:
+
+- Security groups and access rules
+- Views for stock requests, orders, and allocations
+- Stock move and picking views
+- Configuration settings views
+- Sequence data for request numbering
+
+## Known Issues / Roadmap
+
+<Warning>
+Archiving functionality for Stock Requests and Orders needs development.
+</Warning>
+
+### Current Limitations
+
+- No way to archive Stock Requests and Stock Request Orders
+- Archiving should only be allowed for Cancelled and Done requests
+- Active field management from Orders to Stock Requests needs implementation
+
+## Integration with Other Modules
+
+The core module serves as the foundation for:
+
+<CardGroup cols={2}>
+  <Card title="Purchase Integration" icon="shopping-cart" href="/modules/purchase">
+    Auto-install when purchase_stock is available
+  </Card>
+  
+  <Card title="MRP Integration" icon="industry" href="/modules/mrp">
+    Auto-install when mrp module is available
+  </Card>
+  
+  <Card title="Kanban Cards" icon="columns" href="/modules/kanban">
+    Add barcode-based reordering system
+  </Card>
+  
+  <Card title="Approval Workflows" icon="layer-group" href="/modules/tier-validation">
+    Add multi-tier validation process
+  </Card>
+</CardGroup>
+
+## Support
+
+For issues and feature requests:
+
+- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
+- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request)
+- **Documentation**: [Odoo Community Association](https://odoo-community.org)
+
+<Info>
+Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
+</Info>

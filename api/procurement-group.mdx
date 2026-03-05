@@ -1,0 +1,159 @@
+---
+title: "procurement.group Extension"
+description: "Stock Request extensions to the procurement.group model"
+---
+
+## Overview
+
+The Stock Request module extends Odoo's standard `procurement.group` model to modify the procurement origin when procurements are triggered by stock requests that belong to stock request orders. This ensures proper traceability by setting the origin to the stock request order name instead of individual request references.
+
+**Base Model**: `procurement.group`
+
+**Purpose**: Enhance procurement traceability by replacing stock request origins with their parent stock request order reference when applicable.
+
+<Info>
+  This extension is particularly important for maintaining clean audit trails in procurement and inventory operations triggered by stock request orders.
+</Info>
+
+## Overridden Methods
+
+### run()
+
+Extends the procurement execution logic to modify the origin field of procurements linked to stock requests that are part of stock request orders.
+
+**Parameters**:
+- `procurements` - List of procurement records to process
+- `raise_user_error` - Boolean flag to control error handling (default: `True`)
+
+**Returns**: Result from the parent `run()` method
+
+```python
+@api.model
+def run(self, procurements, raise_user_error=True):
+    indexes_to_pop = []
+    new_procs = []
+    for i, procurement in enumerate(procurements):
+        if "stock_request_id" in procurement.values and procurement.values.get(
+            "stock_request_id"
+        ):
+            req = self.env["stock.request"].browse(
+                procurement.values.get("stock_request_id")
+            )
+            if req.order_id:
+                new_procs.append(procurement._replace(origin=req.order_id.name))
+                indexes_to_pop.append(i)
+    if new_procs:
+        indexes_to_pop.reverse()
+        for index in indexes_to_pop:
+            procurements.pop(index)
+        procurements.extend(new_procs)
+    return super().run(procurements, raise_user_error=raise_user_error)
+```
+
+## Logic Flow
+
+<Note>
+  The method uses a replacement strategy to modify procurements:
+  1. Identifies procurements linked to stock requests with orders
+  2. Creates replacement procurements with updated origin
+  3. Removes original procurements from the list
+  4. Adds modified procurements back to the list
+  5. Passes the updated list to the parent method
+</Note>
+
+### Step-by-Step Process
+
+1. **Identification Phase**:
+   - Iterate through all procurements
+   - Check if `stock_request_id` exists in procurement values
+   - Load the associated stock request record
+
+2. **Origin Replacement Phase**:
+   - Check if the stock request has a parent order (`order_id`)
+   - If yes, create a new procurement with `origin` set to `order_id.name`
+   - Track the index of the original procurement for removal
+
+3. **List Reconstruction Phase**:
+   - Reverse the index list to avoid shifting issues during removal
+   - Remove original procurements from the list
+   - Append the new procurements with updated origins
+
+4. **Execution Phase**:
+   - Call the parent `run()` method with the modified procurement list
+
+## Procurement Values Context
+
+The extension relies on the `stock_request_id` being present in the procurement's `values` dictionary:
+
+```python
+# Example procurement values structure
+procurement.values = {
+    'stock_request_id': 42,  # ID of the stock request
+    'warehouse_id': warehouse.id,
+    'route_ids': [(4, route.id)],
+    # ... other procurement values
+}
+```
+
+<Info>
+  The `stock_request_id` value is typically set by the stock request module when creating procurements from stock requests.
+</Info>
+
+## Origin Traceability
+
+### Without Extension
+```
+Procurement Origin: "Stock Request SR001"
+```
+
+### With Extension (when request belongs to an order)
+```
+Procurement Origin: "Stock Request Order SRO-2024-001"
+```
+
+<Note>
+  This change provides better traceability at the order level, especially when multiple requests from the same order trigger separate procurements.
+</Note>
+
+## Relationships
+
+**To Stock Request**: Reads stock request data through procurement values
+
+**To Stock Request Order**: Accesses order information via `stock.request.order_id`
+
+**To Procurements**: Modifies procurement records before processing
+
+## Use Cases
+
+1. **Order-Level Traceability**: Group all procurements from the same stock request order under a single origin reference
+2. **Purchase Order References**: Ensure purchase orders created from procurements reference the stock request order
+3. **Manufacturing Orders**: Link production orders to stock request orders rather than individual requests
+4. **Audit Trails**: Maintain clear documentation of which orders triggered which procurement operations
+
+## Example Scenario
+
+```python
+# Stock Request Order: SRO-2024-001
+# Contains 3 stock requests: SR001, SR002, SR003
+
+# Without extension:
+# - Purchase Order Line 1: Origin = "SR001"
+# - Purchase Order Line 2: Origin = "SR002"
+# - Purchase Order Line 3: Origin = "SR003"
+
+# With extension:
+# - Purchase Order Line 1: Origin = "SRO-2024-001"
+# - Purchase Order Line 2: Origin = "SRO-2024-001"
+# - Purchase Order Line 3: Origin = "SRO-2024-001"
+```
+
+<Info>
+  This consolidation makes it easier to track all procurements related to a specific stock request order.
+</Info>
+
+## Technical Notes
+
+- The method uses `procurement._replace()` to create a modified copy, as procurements are often implemented as named tuples
+- Indexes are reversed before removal to prevent index shifting issues
+- The extension only affects procurements with both `stock_request_id` and `order_id` present
+- Procurements without stock requests or with requests not belonging to orders are unaffected

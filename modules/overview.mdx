@@ -1,0 +1,103 @@
+---
+title: Modules Overview
+description: Introduction to the Stock Request module ecosystem and architecture
+---
+
+The Stock Request framework consists of a core module and several complementary extensions that work together to provide a comprehensive internal stock request management system for Odoo.
+
+## Architecture
+
+The Stock Request framework follows a modular architecture where the core module provides the base functionality, and extension modules add specific features:
+
+- **Core Foundation**: The `stock_request` module provides the base request functionality
+- **Integration Modules**: Connect stock requests with purchasing, manufacturing, and other processes
+- **Enhancement Modules**: Add features like kanban cards, validation workflows, and directional requests
+- **Specialized Modules**: Handle specific use cases like returns and BOM integration
+
+## How Modules Work Together
+
+The modules integrate seamlessly with each other:
+
+1. **Stock Request (Core)** - Base functionality for creating and managing internal stock requests
+2. **Integration Layer** - Modules like Purchase and MRP automatically create POs or MOs when requests are confirmed
+3. **Workflow Enhancements** - Submit and Tier Validation add approval processes
+4. **UI Improvements** - Kanban provides visual card-based management
+5. **Advanced Features** - Direction, BOM, and Return modules add specialized capabilities
+
+<Note>
+Most extension modules are marked as `auto_install: True`, meaning they activate automatically when their dependencies are met.
+</Note>
+
+## Module Ecosystem
+
+<CardGroup cols={2}>
+  <Card title="Stock Request (Core)" icon="box" href="/modules/core">
+    Foundation module for internal stock requests with procurement integration
+  </Card>
+  
+  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
+    Lean kanban card system for reordering products with barcode scanning
+  </Card>
+  
+  <Card title="Stock Request Purchase" icon="shopping-cart" href="/modules/purchase">
+    Display and manage purchase orders created from stock requests
+  </Card>
+  
+  <Card title="Stock Request MRP" icon="industry" href="/modules/mrp">
+    Display and manage manufacturing orders generated from stock requests
+  </Card>
+  
+  <Card title="Stock Request BOM" icon="list-tree" href="/modules/bom">
+    Auto-fill stock request lines based on Bill of Materials
+  </Card>
+  
+  <Card title="Stock Request Direction" icon="arrows-left-right" href="/modules/direction">
+    Request transfers to or from warehouses without selecting specific locations
+  </Card>
+  
+  <Card title="Stock Request Submit" icon="paper-plane" href="/modules/submit">
+    Add submission state for supervisor validation before confirmation
+  </Card>
+  
+  <Card title="Stock Request Tier Validation" icon="layer-group" href="/modules/tier-validation">
+    Multi-tier approval workflow for stock requests and orders
+  </Card>
+  
+  <Card title="Stock Return Request" icon="rotate-left" href="/modules/return-request">
+    Return stock to suppliers, customers, or internal locations
+  </Card>
+</CardGroup>
+
+## Installation Strategy
+
+<Info>
+Install the core `stock_request` module first, then add extension modules based on your business needs.
+</Info>
+
+### Typical Installation Scenarios
+
+**Basic Internal Requests**
+- Install: `stock_request`
+
+**Purchase-Driven Requests**
+- Install: `stock_request`, `purchase_stock`
+- Auto-installs: `stock_request_purchase`
+
+**Manufacturing-Driven Requests**
+- Install: `stock_request`, `mrp`
+- Auto-installs: `stock_request_mrp`, `stock_request_bom`
+
+**Complete System with Approvals**
+- Install: `stock_request`, `stock_request_kanban`, `stock_request_submit`, `stock_request_tier_validation`, `base_tier_validation`
+
+## License and Credits
+
+All modules in the Stock Request framework are:
+- Licensed under LGPL-3 (except tier validation and return request which use AGPL-3)
+- Maintained by the OCA (Odoo Community Association)
+- Part of the `stock-logistics-request` repository
+- Available for Odoo 18.0
+
+<Warning>
+This is a Beta-maturity framework. While stable for production use, some features may still be under active development.
+</Warning>

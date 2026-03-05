@@ -1,0 +1,643 @@
+---
+title: stock.request
+description: API reference for the stock.request model in Stock Request framework
+---
+
+## Overview
+
+The `stock.request` model represents individual stock requests in the Odoo Stock Request framework.
+
+- **Model name**: `stock.request`
+- **Description**: Stock Request
+- **Inherits from**: `stock.request.abstract`
+- **Order**: `id desc`
+
+## Purpose
+
+This model manages stock requests that trigger procurement rules to fulfill inventory needs. It tracks the lifecycle of requests from draft through confirmation, execution, and completion, with support for allocations, stock moves, and pickings.
+
+## Fields
+
+### Core Fields
+
+<ParamField path="name" type="Char" required>
+  Unique identifier for the stock request. Auto-generated from sequence if not provided.
+  
+  Default: `/`
+</ParamField>
+
+<ParamField path="state" type="Selection" required>
+  Current status of the stock request.
+  
+  Possible values:
+  - `draft` - Draft
+  - `open` - In progress
+  - `done` - Done
+  - `cancel` - Cancelled
+  
+  Default: `draft`
+  
+  Attributes: `copy=False`, `index=True`, `readonly=True`, `tracking=True`
+</ParamField>
+
+<ParamField path="requested_by" type="Many2one" required>
+  User who requested the stock.
+  
+  Related model: `res.users`
+  
+  Default: Current user (from `_get_default_requested_by()`)
+  
+  Attributes: `tracking=True`
+</ParamField>
+
+<ParamField path="expected_date" type="Datetime" required>
+  Date when you expect to receive the goods.
+  
+  Attributes: `index=True`
+</ParamField>
+
+<ParamField path="picking_policy" type="Selection" required>
+  Defines how products should be received.
+  
+  Possible values:
+  - `direct` - Receive each product when available
+  - `one` - Receive all products at once
+  
+  Default: `direct`
+</ParamField>
+
+### Product & Quantity Fields
+
+<ParamField path="product_id" type="Many2one" required>
+  Product to request. Inherited from `stock.request.abstract`.
+  
+  Related model: `product.product`
+</ParamField>
+
+<ParamField path="product_uom_id" type="Many2one" required>
+  Unit of measure for the requested product. Inherited from `stock.request.abstract`.
+  
+  Related model: `uom.uom`
+</ParamField>
+
+<ParamField path="product_uom_qty" type="Float" required>
+  Quantity in the specified unit of measure. Inherited from `stock.request.abstract`.
+  
+  Digits: `Product Unit of Measure`
+</ParamField>
+
+<ParamField path="qty_in_progress" type="Float">
+  Quantity currently in progress.
+  
+  Computed field (stored): Based on `allocation_ids`
+  
+  Digits: `Product Unit of Measure`
+  
+  Attributes: `readonly=True`, `store=True`
+</ParamField>
+
+<ParamField path="qty_done" type="Float">
+  Quantity completed.
+  
+  Computed field (stored): Based on `allocation_ids`
+  
+  Digits: `Product Unit of Measure`
+  
+  Attributes: `readonly=True`, `store=True`
+</ParamField>
+
+<ParamField path="qty_cancelled" type="Float">
+  Quantity cancelled.
+  
+  Computed field (stored): Based on `allocation_ids`
+  
+  Digits: `Product Unit of Measure`
+  
+  Attributes: `readonly=True`, `store=True`
+</ParamField>
+
+### Location & Warehouse Fields
+
+<ParamField path="warehouse_id" type="Many2one" required>
+  Warehouse where the stock will be received. Inherited from `stock.request.abstract`.
+  
+  Related model: `stock.warehouse`
+</ParamField>
+
+<ParamField path="location_id" type="Many2one" required>
+  Destination location for the stock. Inherited from `stock.request.abstract`.
+  
+  Related model: `stock.location`
+</ParamField>
+
+### Relational Fields
+
+<ParamField path="order_id" type="Many2one">
+  Parent stock request order, if this request is part of an order.
+  
+  Related model: `stock.request.order`
+  
+  Attributes: `readonly=True`
+</ParamField>
+
+<ParamField path="allocation_ids" type="One2many">
+  Stock request allocations linking this request to stock moves.
+  
+  Related model: `stock.request.allocation`
+  
+  Inverse field: `stock_request_id`
+</ParamField>
+
+<ParamField path="move_ids" type="One2many">
+  Stock moves associated with this request.
+  
+  Computed field: Derived from `allocation_ids.stock_move_id` and origin moves
+  
+  Related model: `stock.move`
+  
+  Attributes: `readonly=True`
+</ParamField>
+
+<ParamField path="picking_ids" type="One2many">
+  Delivery orders/pickings related to this request.
+  
+  Computed field: Derived from `move_ids.picking_id`
+  
+  Related model: `stock.picking`
+  
+  Attributes: `readonly=True`
+</ParamField>
+
+<ParamField path="picking_count" type="Integer">
+  Number of delivery orders.
+  
+  Computed field: Count of `picking_ids`
+  
+  Attributes: `readonly=True`
+</ParamField>
+
+<ParamField path="procurement_group_id" type="Many2one">
+  Procurement group for organizing stock moves. Inherited from `stock.request.abstract`.
+  
+  Related model: `procurement.group`
+</ParamField>
+
+<ParamField path="route_id" type="Many2one">
+  Route to use for procurement. Inherited from `stock.request.abstract`.
+  
+  Related model: `stock.route`
+</ParamField>
+
+<ParamField path="company_id" type="Many2one" required>
+  Company owning this stock request. Inherited from `stock.request.abstract`.
+  
+  Related model: `res.company`
+</ParamField>
+
+## Methods
+
+### action_confirm()
+
+Confirms the stock request and triggers procurement rule execution.
+
+**Returns:** `bool` - Always returns `True`
+
+**State Transition:** `draft` → `open` (or `done` if immediately fulfilled)
+
+```python
+def action_confirm(self):
+    self._action_confirm()
+    return True
+```
+
+**Internal implementation:**
+
+```python
+def _action_confirm(self):
+    self._action_launch_procurement_rule()
+    self.filtered(lambda x: x.state != "done").write({"state": "open"})
+```
+
+**Usage:**
+
+```python
+# Confirm a single request
+request = env['stock.request'].browse(request_id)
+request.action_confirm()
+
+# Confirm multiple requests
+requests = env['stock.request'].browse([id1, id2, id3])
+requests.action_confirm()
+```
+
+---
+
+### action_draft()
+
+Resets the stock request to draft state.
+
+**Returns:** `bool` - Always returns `True`
+
+**State Transition:** Any state → `draft`
+
+```python
+def action_draft(self):
+    self.write({"state": "draft"})
+    return True
+```
+
+**Usage:**
+
+```python
+request = env['stock.request'].browse(request_id)
+request.action_draft()
+```
+
+---
+
+### action_cancel()
+
+Cancels the stock request and all associated stock moves.
+
+**Returns:** `bool` - Always returns `True`
+
+**State Transition:** Any state → `cancel`
+
+```python
+def action_cancel(self):
+    self.sudo().mapped("move_ids")._action_cancel()
+    self.write({"state": "cancel"})
+    return True
+```
+
+**Usage:**
+
+```python
+request = env['stock.request'].browse(request_id)
+request.action_cancel()
+```
+
+---
+
+### action_done()
+
+Marks the stock request as done.
+
+**Returns:** `bool` - Always returns `True`
+
+**State Transition:** Any state → `done`
+
+```python
+def action_done(self):
+    self.write({"state": "done"})
+    return True
+```
+
+**Usage:**
+
+```python
+request = env['stock.request'].browse(request_id)
+request.action_done()
+```
+
+---
+
+### _prepare_procurement_values()
+
+Prepares procurement values for creating stock moves or purchase orders.
+
+**Parameters:**
+- `group_id` (int, optional): Procurement group ID. If not provided, uses `self.procurement_group_id`
+
+**Returns:** `dict` - Dictionary with procurement values
+
+```python
+def _prepare_procurement_values(self, group_id=False):
+    return {
+        "date_planned": self.expected_date,
+        "warehouse_id": self.warehouse_id,
+        "stock_request_allocation_ids": self.id,
+        "group_id": group_id or self.procurement_group_id.id or False,
+        "route_ids": self.route_id,
+        "stock_request_id": self.id,
+    }
+```
+
+**Usage:**
+
+```python
+request = env['stock.request'].browse(request_id)
+values = request._prepare_procurement_values()
+print(values)
+# Output: {'date_planned': datetime, 'warehouse_id': warehouse, ...}
+```
+
+**Extension:**
+
+This method can be overridden to add custom keys for procurement:
+
+```python
+def _prepare_procurement_values(self, group_id=False):
+    values = super()._prepare_procurement_values(group_id)
+    values.update({
+        'custom_field': self.custom_field,
+        'priority': self.priority,
+    })
+    return values
+```
+
+---
+
+### _action_launch_procurement_rule()
+
+Launches procurement rules to fulfill the stock request. Executes `_run_move`, `_run_buy`, or `_run_manufacture` depending on product configuration.
+
+**Returns:** `bool` - Always returns `True`
+
+**Raises:** `UserError` - If procurement fails
+
+```python
+def _action_launch_procurement_rule(self):
+    precision = self.env["decimal.precision"].precision_get(
+        "Product Unit of Measure"
+    )
+    errors = []
+    for request in self:
+        if request._skip_procurement():
+            continue
+        qty = 0.0
+        for move in request.move_ids.filtered(lambda r: r.state != "cancel"):
+            qty += move.product_qty
+
+        if float_compare(qty, request.product_qty, precision_digits=precision) >= 0:
+            continue
+
+        # If stock is available we use it and we do not execute rule
+        if request.company_id.stock_request_check_available_first:
+            if (
+                float_compare(
+                    request.product_id.sudo()
+                    .with_context(location=request.location_id.id)
+                    .free_qty,
+                    request.product_uom_qty,
+                    precision_digits=precision,
+                )
+                >= 0
+            ):
+                request._action_use_stock_available()
+                continue
+
+        values = request._prepare_procurement_values(
+            group_id=request.procurement_group_id
+        )
+        try:
+            procurements = []
+            procurements.append(
+                self.env["procurement.group"].Procurement(
+                    request.product_id,
+                    request.product_uom_qty,
+                    request.product_uom_id,
+                    request.location_id,
+                    request.name,
+                    request.name,
+                    self.env.company,
+                    values,
+                )
+            )
+            self.env["procurement.group"].run(procurements)
+        except UserError as error:
+            errors.append(str(error))
+    if errors:
+        raise UserError("\n".join(errors))
+    return True
+```
+
+**Behavior:**
+
+1. Skips procurement if state is not `draft` or product type is not stockable
+2. Checks if quantity is already satisfied by existing moves
+3. If company setting enabled, attempts to use available stock first
+4. Otherwise, creates procurement to trigger buy/manufacture/move rules
+
+**Usage:**
+
+```python
+request = env['stock.request'].browse(request_id)
+try:
+    request._action_launch_procurement_rule()
+except UserError as e:
+    print(f"Procurement failed: {e}")
+```
+
+---
+
+### check_done()
+
+Checks if the request should be marked as done based on allocated quantities.
+
+**Returns:** `bool` - Always returns `True`
+
+```python
+def check_done(self):
+    precision = self.env["decimal.precision"].precision_get(
+        "Product Unit of Measure"
+    )
+    for request in self:
+        allocated_qty = sum(request.allocation_ids.mapped("allocated_product_qty"))
+        qty_done = request.product_id.uom_id._compute_quantity(
+            allocated_qty, request.product_uom_id
+        )
+        if (
+            float_compare(
+                qty_done, request.product_uom_qty, precision_digits=precision
+            )
+            >= 0
+        ):
+            request.action_done()
+        elif request._check_cancel_allocation():
+            # If qty_done=0 and qty_cancelled>0 it's cancelled
+            request.write({"state": "cancel"})
+    return True
+```
+
+---
+
+### check_cancel()
+
+Checks if the request should be marked as cancelled based on allocations.
+
+**Returns:** `None`
+
+```python
+def check_cancel(self):
+    for request in self:
+        if request._check_cancel_allocation():
+            request.write({"state": "cancel"})
+```
+
+---
+
+### action_view_transfer()
+
+Opens the view showing associated delivery orders/pickings.
+
+**Returns:** `dict` - Action definition for opening picking tree/form view
+
+```python
+def action_view_transfer(self):
+    action = self.env["ir.actions.act_window"]._for_xml_id(
+        "stock.action_picking_tree_all"
+    )
+    pickings = self.mapped("picking_ids")
+    if len(pickings) > 1:
+        action["domain"] = [("id", "in", pickings.ids)]
+    elif pickings:
+        action["views"] = [(self.env.ref("stock.view_picking_form").id, "form")]
+        action["res_id"] = pickings.id
+    return action
+```
+
+**Usage:**
+
+```python
+request = env['stock.request'].browse(request_id)
+action = request.action_view_transfer()
+# Returns action to open picking view(s)
+```
+
+---
+
+### _prepare_stock_move()
+
+Prepares values for creating a stock move.
+
+**Parameters:**
+- `qty` (float): Quantity for the stock move
+
+**Returns:** `dict` - Values for stock move creation
+
+```python
+def _prepare_stock_move(self, qty):
+    return {
+        "name": self.product_id.display_name,
+        "company_id": self.company_id.id,
+        "product_id": self.product_id.id,
+        "product_uom_qty": qty,
+        "product_uom": self.product_id.uom_id.id,
+        "location_id": self.location_id.id,
+        "location_dest_id": self.location_id.id,
+        "state": "draft",
+        "reference": self.name,
+    }
+```
+
+---
+
+### _prepare_stock_request_allocation()
+
+Prepares values for creating a stock request allocation.
+
+**Parameters:**
+- `move` (stock.move): Stock move record to allocate
+
+**Returns:** `dict` - Values for allocation creation
+
+```python
+def _prepare_stock_request_allocation(self, move):
+    return {
+        "stock_request_id": self.id,
+        "stock_move_id": move.id,
+        "requested_product_uom_qty": move.product_uom_qty,
+    }
+```
+
+## Constraints
+
+### SQL Constraints
+
+- `name_uniq`: Stock Request name must be unique per company
+
+### Python Constraints
+
+<Expandable title="_check_qty">
+  Validates product quantity based on state:
+  - In `draft` state: quantity must be strictly positive (> 0)
+  - In other states: quantity cannot be negative (>= 0)
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+<Expandable title="check_order_requested_by">
+  If the request belongs to an order, validates that `requested_by` matches the order's `requested_by`.
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+<Expandable title="check_order_warehouse_id">
+  If the request belongs to an order, validates that `warehouse_id` matches the order's warehouse.
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+<Expandable title="check_order_location">
+  If the request belongs to an order, validates that `location_id` matches the order's location.
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+<Expandable title="check_order_procurement_group">
+  If the request belongs to an order, validates that `procurement_group_id` matches the order's procurement group.
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+<Expandable title="check_order_company">
+  If the request belongs to an order, validates that `company_id` matches the order's company.
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+<Expandable title="check_order_expected_date">
+  If the request belongs to an order, validates that `expected_date` matches the order's expected date.
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+<Expandable title="check_order_picking_policy">
+  If the request belongs to an order, validates that `picking_policy` matches the order's picking policy.
+  
+  **Raises:** `ValidationError`
+</Expandable>
+
+## Lifecycle
+
+```python
+# Create a stock request
+request = env['stock.request'].create({
+    'product_id': product.id,
+    'product_uom_qty': 10.0,
+    'product_uom_id': product.uom_id.id,
+    'warehouse_id': warehouse.id,
+    'location_id': location.id,
+    'requested_by': env.user.id,
+})
+# State: draft
+
+# Confirm the request
+request.action_confirm()
+# State: open
+# Procurement rules triggered
+
+# System automatically updates quantities via allocations
+# qty_in_progress and qty_done are computed
+
+# When fulfilled, request is marked done
+request.check_done()
+# State: done
+```
+
+## See Also
+
+- [stock.request.order](/api/stock-request-order) - Parent order model
+- [stock.request.allocation](/api/stock-request-allocation) - Allocation link between requests and moves
+- [stock.request.abstract](/api/stock-request-abstract) - Base abstract model

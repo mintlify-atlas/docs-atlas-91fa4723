@@ -1,0 +1,260 @@
+---
+title: Stock Request MRP
+description: Display and manage manufacturing orders created from stock requests
+---
+
+The Stock Request MRP module integrates stock requests with manufacturing, allowing users to view and manage manufacturing orders (MOs) that are automatically created when stock requests are confirmed.
+
+## Overview
+
+This module enables users to display Manufacturing Orders that have been created as a consequence of Stock Requests. When a stock request is confirmed and procurement rules determine that manufacturing is required, the system generates the corresponding MO and provides direct access from the stock request.
+
+## Key Features
+
+- **Manufacturing Order Display**: View MOs generated from stock requests
+- **Direct Navigation**: Access manufacturing orders from stock request forms
+- **Automatic Integration**: Seamless connection with MRP system
+- **Production Tracking**: Monitor manufacturing progress from stock request context
+- **Smart Buttons**: Intuitive UI elements for accessing related MOs
+
+## Dependencies
+
+```python
+"depends": ["stock_request", "mrp"]
+```
+
+<Info>
+This module is marked as `auto_install: True`, meaning it installs automatically when both `stock_request` and `mrp` modules are present.
+</Info>
+
+## Installation
+
+### Automatic Installation
+
+The module installs automatically when:
+
+1. `stock_request` module is installed
+2. `mrp` (Manufacturing) module is installed
+3. You update the module list or restart Odoo
+
+### Manual Installation
+
+If needed, manually install:
+
+1. Navigate to **Apps**
+2. Search for "Stock Request MRP"
+3. Click **Install**
+
+## Configuration
+
+No specific configuration required. The module works automatically with your existing:
+
+- Bill of Materials (BOMs)
+- Manufacturing routes
+- Procurement rules
+- Work centers and routings
+
+<Note>
+Ensure your products have BOMs defined and manufacturing routes configured for the module to generate MOs.
+</Note>
+
+## Usage
+
+### Creating Stock Requests that Trigger Manufacturing
+
+1. Go to **Stock Requests > Stock Requests**
+2. Click **Create**
+3. Select a manufactured product (one with a BOM)
+4. Enter the quantity and destination location
+5. Click **Confirm**
+
+### Viewing Manufacturing Orders
+
+Once the stock request is confirmed:
+
+1. Open the confirmed stock request
+2. Look for the **Manufacturing Orders** smart button
+3. Click to view all related manufacturing orders
+4. Manage production directly from the MO or navigate to Manufacturing app
+
+<Info>
+The Manufacturing Orders button appears when the confirmation of the stock request results in an immediate manufacturing order.
+</Info>
+
+### Complete Workflow
+
+```
+Stock Request → Confirm → Procurement → Manufacturing Order → Production → Done
+```
+
+1. **Create Stock Request**
+   - Product: Finished Good A
+   - Quantity: 50 units
+   - Location: WH/Stock
+
+2. **System Generates MO**
+   - Evaluates procurement rules
+   - Finds manufacturing route
+   - Creates Manufacturing Order with BOM components
+
+3. **View from Stock Request**
+   - Click MO smart button
+   - Review components, work orders
+   - Plan production
+
+4. **Complete Production**
+   - Process work orders
+   - Consume components
+   - Produce finished goods
+   - Stock request is fulfilled
+
+## Technical Details
+
+### Module Information
+
+- **Technical Name**: `stock_request_mrp`
+- **Version**: 18.0.1.0.0
+- **License**: LGPL-3
+- **Category**: Warehouse Management
+- **Author**: ForgeFlow, OCA
+- **Maintainers**: LoisRForgeFlow, etobella
+- **Auto Install**: Yes
+- **Post Init Hook**: Yes
+
+### Extended Views
+
+The module adds:
+
+- Manufacturing order smart buttons to stock request forms
+- MO count and access from stock request orders
+- Stock request reference in manufacturing order views
+- Related stock request links in MO forms
+
+### Post-Installation Processing
+
+The module includes a `post_init_hook` that:
+
+- Links existing manufacturing orders to stock requests
+- Ensures data consistency
+- Updates relationships for historical data
+
+## Integration Scenarios
+
+### Scenario 1: Simple Manufacturing
+
+```
+Stock Request → MO Created → Produce → Fulfill Request
+```
+
+- Single-level BOM
+- All components available
+- Direct production fulfills request
+
+### Scenario 2: Multi-Level BOM
+
+```
+Stock Request → MO for Product → Sub-MOs for Components → Production Chain
+```
+
+- Complex product structure
+- Multiple manufacturing orders created
+- All visible from original stock request
+
+### Scenario 3: Mixed Procurement
+
+```
+Stock Request → MO + Purchase Orders → Combined Fulfillment
+```
+
+- Some components manufactured
+- Other components purchased
+- Both visible from stock request (with purchase module)
+
+## Best Practices
+
+### BOM Configuration
+
+- Maintain accurate and up-to-date BOMs
+- Define appropriate manufacturing routes
+- Set realistic lead times for production
+- Configure work centers for capacity planning
+
+### Stock Request Planning
+
+- Consider manufacturing lead times when requesting
+- Account for component availability
+- Plan requests based on production capacity
+- Coordinate with production planners
+
+### Monitoring Production
+
+- Regularly check MO status from stock requests
+- Track production delays
+- Ensure component availability
+- Monitor work order progress
+
+## Advanced Features
+
+### Integration with Planning
+
+- Stock requests feed into production planning
+- MRP calculations consider requested quantities
+- Manufacturing schedules reflect stock request priorities
+
+### Component Procurement
+
+- Missing components may trigger additional stock requests
+- Cascade effect for multi-level BOMs
+- Automatic purchase or manufacturing of components
+
+## Troubleshooting
+
+### MO Not Created
+
+<Warning>
+If no manufacturing order is created, verify:
+</Warning>
+
+- Product has an active BOM
+- Manufacturing route is configured
+- Procurement rules point to production
+- Product is set to "Can be manufactured"
+
+### Cannot View MOs
+
+Ensure:
+
+- You have access rights to Manufacturing app
+- MOs were created (check in Manufacturing menu)
+- Module is installed and updated
+
+## Integration with Other Modules
+
+<CardGroup cols={2}>
+  <Card title="Stock Request Core" icon="box" href="/modules/core">
+    Base functionality for stock requests
+  </Card>
+  
+  <Card title="Stock Request BOM" icon="list-tree" href="/modules/bom">
+    Create requests from BOMs directly
+  </Card>
+  
+  <Card title="Stock Request Purchase" icon="shopping-cart" href="/modules/purchase">
+    View both MOs and POs from requests
+  </Card>
+  
+  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
+    Trigger manufacturing from kanban cards
+  </Card>
+</CardGroup>
+
+## Support
+
+For issues and feature requests:
+
+- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
+- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_mrp)
+
+<Info>
+Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
+</Info>

@@ -1,0 +1,345 @@
+---
+title: stock.request.allocation
+description: API reference for the stock.request.allocation model in Stock Request framework
+---
+
+## Overview
+
+The `stock.request.allocation` model represents the link between stock requests and stock moves.
+
+- **Model name**: `stock.request.allocation`
+- **Description**: Stock Request Allocation
+- **Inherits from**: None (base model)
+
+## Purpose
+
+This model tracks the allocation of stock moves to stock requests, managing the quantity relationship between a request and the actual stock movements that fulfill it. It enables:
+
+- Tracking which stock moves fulfill which requests
+- Computing quantities in progress, done, and cancelled
+- Managing partial fulfillment of stock requests
+- Converting between different units of measure
+
+## Fields
+
+### Core Fields
+
+<ParamField path="stock_request_id" type="Many2one" required>
+  The stock request being fulfilled.
+  
+  Related model: `stock.request`
+  
+  Attributes: `ondelete="cascade"`
+</ParamField>
+
+<ParamField path="stock_move_id" type="Many2one" required>
+  The stock move fulfilling the request.
+  
+  Related model: `stock.move`
+  
+  Attributes: `ondelete="cascade"`
+</ParamField>
+
+### Related Fields
+
+<ParamField path="company_id" type="Many2one">
+  Company owning this allocation.
+  
+  Related field: `stock_request_id.company_id`
+  
+  Related model: `res.company`
+  
+  Attributes: `readonly=True`, `store=True`
+</ParamField>
+
+<ParamField path="product_id" type="Many2one">
+  Product being allocated.
+  
+  Related field: `stock_request_id.product_id`
+  
+  Related model: `product.product`
+  
+  Attributes: `readonly=True`
+</ParamField>
+
+<ParamField path="product_uom_id" type="Many2one">
+  Unit of measure for the product.
+  
+  Related field: `stock_request_id.product_uom_id`
+  
+  Related model: `uom.uom`
+  
+  Attributes: `readonly=True`
+</ParamField>
+
+### Quantity Fields
+
+<ParamField path="requested_product_uom_qty" type="Float">
+  Quantity of the stock request allocated to the stock move, in the UoM of the Stock Request.
+  
+  This is the base quantity field that determines how much of the request is allocated to this move.
+</ParamField>
+
+<ParamField path="requested_product_qty" type="Float">
+  Quantity of the stock request allocated to the stock move, in the default UoM of the product.
+  
+  Computed field: Converts `requested_product_uom_qty` to product's default UoM
+  
+  Attributes: `compute="_compute_requested_product_qty"`
+</ParamField>
+
+<ParamField path="allocated_product_qty" type="Float">
+  Quantity of the stock request allocated to the stock move, in the default UoM of the product.
+  
+  This represents the actual allocated/completed quantity.
+  
+  Attributes: `copy=False`
+</ParamField>
+
+<ParamField path="open_product_qty" type="Float">
+  Remaining open quantity yet to be allocated.
+  
+  Computed field: `requested_product_qty - allocated_product_qty`
+  
+  Returns 0.0 if the stock move is cancelled or done.
+  
+  Attributes: `compute="_compute_open_product_qty"`
+</ParamField>
+
+## Methods
+
+### _compute_requested_product_qty()
+
+Computes the requested quantity in the product's default UoM.
+
+**Dependencies:** `stock_request_id.product_id`, `stock_request_id.product_uom_id`, `requested_product_uom_qty`
+
+**Returns:** None (updates `requested_product_qty` field)
+
+```python
+@api.depends(
+    "stock_request_id.product_id",
+    "stock_request_id.product_uom_id",
+    "requested_product_uom_qty",
+)
+def _compute_requested_product_qty(self):
+    for rec in self:
+        rec.requested_product_qty = rec.product_uom_id._compute_quantity(
+            rec.requested_product_uom_qty,
+            rec.product_id.uom_id,
+            rounding_method="HALF-UP",
+        )
+```
+
+**Example:**
+
+```python
+# Allocation with 10 units in stock request UoM
+allocation = env['stock.request.allocation'].browse(allocation_id)
+print(f"Requested (UoM): {allocation.requested_product_uom_qty}")
+print(f"Requested (Product UoM): {allocation.requested_product_qty}")
+# Output:
+# Requested (UoM): 10.0
+# Requested (Product UoM): 10.0
+
+# If stock request uses 'dozens' but product UoM is 'units'
+# requested_product_uom_qty = 2.0 (dozens)
+# requested_product_qty = 24.0 (units)
+```
+
+---
+
+### _compute_open_product_qty()
+
+Computes the remaining open quantity for the allocation.
+
+**Dependencies:** `requested_product_qty`, `allocated_product_qty`, `stock_move_id`, `stock_move_id.state`
+
+**Returns:** None (updates `open_product_qty` field)
+
+**Logic:**
+- If stock move is `cancel` or `done`: returns 0.0
+- Otherwise: returns `requested_product_qty - allocated_product_qty` (minimum 0.0)
+
+```python
+@api.depends(
+    "requested_product_qty",
+    "allocated_product_qty",
+    "stock_move_id",
+    "stock_move_id.state",
+)
+def _compute_open_product_qty(self):
+    for rec in self:
+        if rec.stock_move_id.state in ["cancel", "done"]:
+            rec.open_product_qty = 0.0
+        else:
+            rec.open_product_qty = (
+                rec.requested_product_qty - rec.allocated_product_qty
+            )
+            if rec.open_product_qty < 0.0:
+                rec.open_product_qty = 0.0
+```
+
+**Example:**
+
+```python
+allocation = env['stock.request.allocation'].browse(allocation_id)
+print(f"Requested: {allocation.requested_product_qty}")
+print(f"Allocated: {allocation.allocated_product_qty}")
+print(f"Open: {allocation.open_product_qty}")
+# Output:
+# Requested: 100.0
+# Allocated: 60.0
+# Open: 40.0
+
+# After move is done
+move.state  # 'done'
+print(f"Open: {allocation.open_product_qty}")  # 0.0
+```
+
+## Usage Patterns
+
+### Creating an Allocation
+
+Allocations are typically created automatically when stock requests trigger procurement rules, but can also be created manually:
+
+```python
+# Manual allocation creation
+allocation = env['stock.request.allocation'].create({
+    'stock_request_id': request.id,
+    'stock_move_id': move.id,
+    'requested_product_uom_qty': 10.0,
+})
+```
+
+### Tracking Request Fulfillment
+
+Allocations enable tracking of how much of a request has been fulfilled:
+
+```python
+request = env['stock.request'].browse(request_id)
+
+# Get all allocations for a request
+allocations = request.allocation_ids
+
+# Calculate total allocated quantity
+total_allocated = sum(allocations.mapped('allocated_product_qty'))
+
+# Calculate total open quantity
+total_open = sum(allocations.mapped('open_product_qty'))
+
+# Check progress
+for allocation in allocations:
+    print(f"Move: {allocation.stock_move_id.name}")
+    print(f"  State: {allocation.stock_move_id.state}")
+    print(f"  Requested: {allocation.requested_product_qty}")
+    print(f"  Allocated: {allocation.allocated_product_qty}")
+    print(f"  Open: {allocation.open_product_qty}")
+```
+
+### Multiple Allocations per Request
+
+A single stock request can have multiple allocations if it's fulfilled by multiple stock moves:
+
+```python
+request = env['stock.request'].browse(request_id)
+request.product_uom_qty  # 100.0
+
+# Request might be fulfilled by multiple moves
+len(request.allocation_ids)  # 3
+
+# Each allocation tracks part of the fulfillment
+for alloc in request.allocation_ids:
+    print(f"Move {alloc.stock_move_id.name}: {alloc.requested_product_qty}")
+# Output:
+# Move WH/IN/00001: 40.0
+# Move WH/IN/00002: 30.0
+# Move WH/IN/00003: 30.0
+```
+
+### Quantity Conversions
+
+Allocations handle UoM conversions automatically:
+
+```python
+allocation = env['stock.request.allocation'].browse(allocation_id)
+
+# Stock request might use different UoM than product
+request_uom = allocation.stock_request_id.product_uom_id  # 'Boxes'
+product_uom = allocation.product_id.uom_id  # 'Units'
+
+# requested_product_uom_qty is in request UoM
+allocation.requested_product_uom_qty  # 5.0 (boxes)
+
+# requested_product_qty is in product UoM
+allocation.requested_product_qty  # 60.0 (units, if 1 box = 12 units)
+```
+
+## Lifecycle
+
+```python
+# 1. Stock request is created and confirmed
+request = env['stock.request'].create({...})
+request.action_confirm()
+
+# 2. Procurement creates stock move
+# 3. Allocation is automatically created linking request to move
+allocation = env['stock.request.allocation'].search([
+    ('stock_request_id', '=', request.id)
+], limit=1)
+
+# Initial state
+allocation.requested_product_qty  # 100.0
+allocation.allocated_product_qty  # 0.0
+allocation.open_product_qty      # 100.0
+allocation.stock_move_id.state   # 'draft' or 'waiting'
+
+# 4. Stock move is processed
+allocation.stock_move_id._action_done()
+
+# 5. Allocated quantity is updated (typically by move processing)
+allocation.allocated_product_qty  # 100.0
+
+# Final state
+allocation.open_product_qty      # 0.0
+allocation.stock_move_id.state   # 'done'
+
+# 6. Request is automatically marked as done when fully allocated
+request.state  # 'done'
+```
+
+## Relationship Diagram
+
+```
+stock.request
+    |
+    | (One2many)
+    |
+    v
+stock.request.allocation  <---->  stock.move
+    |                              (Many2one)
+    | (Aggregates)
+    |
+    v
+- qty_in_progress (on stock.request)
+- qty_done (on stock.request)
+- qty_cancelled (on stock.request)
+```
+
+## Field Dependencies
+
+**requested_product_qty depends on:**
+- `stock_request_id.product_id`
+- `stock_request_id.product_uom_id`
+- `requested_product_uom_qty`
+
+**open_product_qty depends on:**
+- `requested_product_qty`
+- `allocated_product_qty`
+- `stock_move_id.state`
+
+## See Also
+
+- [stock.request](/api/stock-request) - Parent stock request model
+- [stock.request.order](/api/stock-request-order) - Order grouping multiple requests
+- [stock.request.abstract](/api/stock-request-abstract) - Base abstract model

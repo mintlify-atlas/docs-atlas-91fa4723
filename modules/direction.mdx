@@ -1,0 +1,291 @@
+---
+title: Stock Request Direction
+description: Request transfers to or from warehouses without specifying inventory locations
+---
+
+The Stock Request Direction module simplifies stock requests by allowing users to specify a direction (inbound or outbound) and warehouse instead of specific inventory locations. This makes requests more intuitive and accessible to users unfamiliar with detailed warehouse structures.
+
+## Overview
+
+This module allows users to request products to be transferred from or to warehouses by specifying the direction, eliminating the need to manually select specific inventory locations. The warehouse team can later define the appropriate routes and locations.
+
+## Key Features
+
+- **Direction Field**: Choose between "To Warehouse" or "From Warehouse"
+- **Simplified Location Selection**: Select warehouse instead of specific location
+- **Automatic Location Resolution**: System determines appropriate locations based on direction
+- **User-Friendly Interface**: Reduces complexity for end users
+- **Warehouse Team Review**: Allows warehouse team to define final routes
+- **Expected Date Support**: Plan requests with delivery expectations
+
+## Dependencies
+
+```python
+"depends": ["stock_request"]
+```
+
+<Note>
+This module only requires the base `stock_request` module and adds directional capabilities.
+</Note>
+
+## Installation
+
+1. Ensure `stock_request` module is installed
+2. Install `stock_request_direction` from Apps menu
+3. Update the module list if needed
+
+## Configuration
+
+### Settings Configuration
+
+The module adds direction-related settings:
+
+1. Go to **Inventory > Configuration > Settings**
+2. Look for Stock Request Direction settings
+3. Configure default behaviors if needed
+
+### Warehouse Configuration
+
+Ensure your warehouses are properly configured:
+
+- Warehouse locations defined
+- Input/Output locations set
+- Routes configured appropriately
+
+<Info>
+No complex configuration is required. The module uses standard warehouse configuration.
+</Info>
+
+## Usage
+
+### Creating a Directional Stock Request
+
+1. Navigate to **Stock Requests > Stock Requests**
+2. Click **Create**
+3. Fill in the request details:
+   - **Product**: Select the product to request
+   - **Quantity**: Enter the requested quantity
+   - **Direction**: Choose "To Warehouse" or "From Warehouse"
+   - **Warehouse**: Select the warehouse (instead of specific location)
+   - **Expected Date**: Set when you need the stock
+4. Click **Confirm**
+
+<Info>
+Upon confirmation, the warehouse team can review and define the appropriate route and specific locations.
+</Info>
+
+### Direction Options
+
+#### To Warehouse (Inbound)
+
+Request products to be delivered to a warehouse:
+
+- **Use Case**: Need materials at a specific warehouse
+- **Example**: "I need 100 units of Product A at Warehouse 1"
+- **System Behavior**: Routes to warehouse input location
+
+#### From Warehouse (Outbound)
+
+Request products to be sent from a warehouse:
+
+- **Use Case**: Need to send materials from a warehouse
+- **Example**: "Send 50 units of Product B from Warehouse 2"
+- **System Behavior**: Sources from warehouse stock locations
+
+### Complete Workflow
+
+1. **User Creates Request**
+   - Selects product and quantity
+   - Chooses direction and warehouse
+   - Sets expected date
+   - Clicks Confirm
+
+2. **Warehouse Team Reviews**
+   - Receives notification of new request
+   - Reviews direction and requirements
+   - Defines specific route if needed
+   - Approves routing
+
+3. **System Creates Transfers**
+   - Generates appropriate stock moves
+   - Creates pickings based on direction
+   - Assigns to warehouse operations
+
+4. **Execution**
+   - Warehouse processes the transfer
+   - User can track from "Transfers" button
+   - Request marked complete when done
+
+## Technical Details
+
+### Module Information
+
+- **Technical Name**: `stock_request_direction`
+- **Version**: 18.0.1.0.0
+- **License**: LGPL-3
+- **Category**: Warehouse Management
+- **Author**: Open Source Integrators, OCA
+- **Maintainer**: max3903
+- **Development Status**: Beta
+
+### Fields Added
+
+#### Stock Request
+
+- `direction` - Selection field (to_warehouse, from_warehouse)
+- `warehouse_id` - Many2one to stock.warehouse
+- Modified location_id behavior based on direction
+
+#### Stock Request Order
+
+- `direction` - Selection field
+- `warehouse_id` - Many2one to stock.warehouse
+- Propagates direction to order lines
+
+### Views Extended
+
+- Stock request form view with direction field
+- Stock request tree view with direction column
+- Stock request order form with warehouse selection
+- Configuration settings for direction defaults
+
+## Use Cases
+
+### Inter-Warehouse Transfers
+
+**Scenario**: Request stock from another warehouse
+
+```
+Warehouse A needs materials from Warehouse B:
+- Direction: From Warehouse
+- Warehouse: Warehouse B
+- Product: Component X
+- Quantity: 100
+```
+
+### Vendor Returns
+
+**Scenario**: Return defective items to supplier
+
+```
+Return items from quality check:
+- Direction: From Warehouse
+- Warehouse: QC Warehouse
+- Product: Defective Part Y
+- Quantity: 25
+```
+
+### Customer Deliveries
+
+**Scenario**: Request stock for customer delivery
+
+```
+Prepare customer shipment:
+- Direction: From Warehouse
+- Warehouse: Main Warehouse
+- Product: Finished Good Z
+- Quantity: 50
+```
+
+### Production Materials
+
+**Scenario**: Request materials for production
+
+```
+Get materials to production floor:
+- Direction: To Warehouse
+- Warehouse: Production Warehouse
+- Product: Raw Material A
+- Quantity: 200
+```
+
+## Best Practices
+
+### For End Users
+
+- Always specify expected dates for better planning
+- Choose the correct direction carefully
+- Provide notes for special handling requirements
+- Select the appropriate warehouse based on need
+
+### For Warehouse Teams
+
+- Review directional requests promptly
+- Verify routing is optimal before approval
+- Check stock availability for from-warehouse requests
+- Communicate delays or issues to requesters
+
+### For Administrators
+
+- Train users on direction concept
+- Configure warehouse locations properly
+- Set up appropriate procurement rules
+- Monitor request patterns for improvements
+
+## Advantages
+
+### Simplified User Experience
+
+- No need to know specific bin locations
+- Intuitive "to" and "from" concept
+- Reduces training requirements
+- Fewer user errors
+
+### Flexible Routing
+
+- Warehouse team controls final routing
+- Can optimize based on current conditions
+- Allows for location changes without user impact
+- Better inventory management
+
+### Improved Planning
+
+- Clear direction of material flow
+- Better visibility for warehouse managers
+- Easier capacity planning
+- More accurate lead time estimates
+
+## Cancellation
+
+<Warning>
+When cancelling a directional stock request, related pending stock moves will also be cancelled.
+</Warning>
+
+The cancellation process:
+
+1. Open the stock request
+2. Click **Cancel**
+3. Confirm cancellation
+4. System cancels related pending moves
+5. Completed transfers remain unchanged
+
+## Integration with Other Modules
+
+<CardGroup cols={2}>
+  <Card title="Stock Request Core" icon="box" href="/modules/core">
+    Base functionality for stock requests
+  </Card>
+  
+  <Card title="Stock Request Submit" icon="paper-plane" href="/modules/submit">
+    Add approval before confirmation
+  </Card>
+  
+  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
+    Combine direction with kanban cards
+  </Card>
+  
+  <Card title="Tier Validation" icon="layer-group" href="/modules/tier-validation">
+    Multi-tier approval for directional requests
+  </Card>
+</CardGroup>
+
+## Support
+
+For issues and feature requests:
+
+- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
+- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_direction)
+
+<Info>
+Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
+</Info>

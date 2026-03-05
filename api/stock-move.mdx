@@ -1,0 +1,170 @@
+---
+title: "stock.move Extension"
+description: "Stock Request extensions to the stock.move model"
+---
+
+## Overview
+
+The Stock Request module extends Odoo's standard `stock.move` model to create a link between stock movements and stock requests through an allocation mechanism. This extension enables tracking which stock requests are fulfilled by which stock moves, and ensures proper lifecycle management when moves are cancelled or completed.
+
+**Base Model**: `stock.move`
+
+**Purpose**: Link stock moves with stock requests via allocations, manage request lifecycle, and maintain data integrity across company boundaries.
+
+## Added Fields
+
+<ParamField path="allocation_ids" type="One2many">
+  Collection of stock request allocations linked to this move. Each allocation connects a portion of this move's quantity to a specific stock request.
+  
+  - **Comodel**: `stock.request.allocation`
+  - **Inverse Field**: `stock_move_id`
+</ParamField>
+
+<ParamField path="stock_request_ids" type="One2many" computed>
+  Computed field that returns all stock requests associated with this move through allocations. This provides a convenient way to access all requests without navigating through the allocation records.
+  
+  - **Comodel**: `stock.request`
+  - **Compute Method**: `_compute_stock_request_ids`
+</ParamField>
+
+## Added Methods
+
+### _compute_stock_request_ids()
+
+Computes the stock requests linked to this move by extracting them from the allocation records.
+
+**Dependencies**: `allocation_ids`
+
+```python
+@api.depends("allocation_ids")
+def _compute_stock_request_ids(self):
+    for rec in self:
+        rec.stock_request_ids = rec.allocation_ids.mapped("stock_request_id")
+```
+
+<Info>
+  This computed field automatically updates whenever allocations are added or removed from the move.
+</Info>
+
+## Overridden Methods
+
+### _merge_moves_fields()
+
+Extends the standard move merging logic to properly handle stock request allocations when multiple moves are merged together.
+
+```python
+def _merge_moves_fields(self):
+    res = super()._merge_moves_fields()
+    res["allocation_ids"] = [(4, m.id) for m in self.mapped("allocation_ids")]
+    return res
+```
+
+<Note>
+  The `(4, m.id)` command links existing allocation records to the merged move without creating duplicates.
+</Note>
+
+### copy_data()
+
+Overrides the copy behavior to properly duplicate stock request allocations when a move is copied.
+
+```python
+def copy_data(self, default=None):
+    if not default:
+        default = {}
+    if "allocation_ids" not in default:
+        default["allocation_ids"] = []
+    for alloc in self.allocation_ids:
+        default["allocation_ids"].append(
+            (
+                0,
+                0,
+                {
+                    "stock_request_id": alloc.stock_request_id.id,
+                    "requested_product_uom_qty": alloc.requested_product_uom_qty,
+                },
+            )
+        )
+    return super().copy_data(default)
+```
+
+<Info>
+  When copying a move, new allocation records are created with the same stock request references and quantities.
+</Info>
+
+### _action_cancel()
+
+Extends the cancellation logic to trigger stock request checks when a move is cancelled.
+
+```python
+def _action_cancel(self):
+    """Apply sudo to prevent requests ACL errors if the user does not have
+    permissions (example: productions)."""
+    res = super()._action_cancel()
+    self.mapped("allocation_ids.stock_request_id").sudo().check_cancel()
+    return res
+```
+
+<Note>
+  Uses `sudo()` to bypass access control checks, ensuring that stock requests can be updated even when triggered by automated processes like manufacturing orders.
+</Note>
+
+### _action_done()
+
+Extends the completion logic to trigger stock request checks when a move is completed.
+
+```python
+def _action_done(self, cancel_backorder=False):
+    """Apply sudo to prevent requests ACL errors if the user does not have
+    permissions (example: productions)."""
+    res = super()._action_done(cancel_backorder=cancel_backorder)
+    self.mapped("allocation_ids.stock_request_id").sudo().check_done()
+    return res
+```
+
+<Info>
+  The `check_done()` method on stock requests updates their state based on whether all allocated moves have been completed.
+</Info>
+
+## Constraints
+
+### _check_company_stock_request()
+
+Validates that all stock request allocations belong to the same company as the move.
+
+```python
+@api.constrains("company_id")
+def _check_company_stock_request(self):
+    if any(
+        self.env["stock.request.allocation"].search(
+            [
+                ("company_id", "!=", rec.company_id.id),
+                ("stock_move_id", "=", rec.id),
+            ],
+            limit=1,
+        )
+        for rec in self
+    ):
+        raise ValidationError(
+            _(
+                "The company of the stock request must match with "
+                "that of the location."
+            )
+        )
+```
+
+<Note>
+  This constraint prevents cross-company data inconsistencies by ensuring stock requests and their moves belong to the same company.
+</Note>
+
+## Relationships
+
+**To Stock Request**: Connected via `stock.request.allocation` (many-to-many through allocations)
+
+**To Stock Request Allocation**: Direct one-to-many relationship through `allocation_ids`
+
+## Use Cases
+
+1. **Request Fulfillment Tracking**: Monitor which stock moves are fulfilling specific stock requests
+2. **Partial Allocations**: Allocate portions of move quantities to different requests
+3. **Automated Workflows**: Automatically update request status when moves are completed or cancelled
+4. **Multi-Company Operations**: Maintain data integrity across company boundaries

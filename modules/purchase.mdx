@@ -1,0 +1,213 @@
+---
+title: Stock Request Purchase
+description: Display and manage purchase orders created from stock requests
+---
+
+The Stock Request Purchase module bridges stock requests with the purchasing system, allowing users to view and manage purchase orders that are automatically created as a result of stock request confirmations.
+
+## Overview
+
+This module enables integration between stock requests and purchase orders. When a stock request is confirmed and the procurement rules determine that a purchase is needed, users can display and track the resulting purchase orders directly from the stock request form.
+
+## Key Features
+
+- **Purchase Order Visibility**: Display POs created from stock requests
+- **Direct Access**: Navigate from stock requests to related purchase orders
+- **Automatic Integration**: Seamless connection with procurement system
+- **Order Tracking**: View purchase order status from stock request context
+
+## Dependencies
+
+```python
+"depends": ["stock_request", "purchase_stock"]
+```
+
+<Info>
+This module is marked as `auto_install: True`, meaning it installs automatically when both `stock_request` and `purchase_stock` modules are installed.
+</Info>
+
+## Installation
+
+### Automatic Installation
+
+The module installs automatically when:
+
+1. `stock_request` module is installed
+2. `purchase_stock` module is installed
+3. You update the module list or restart Odoo
+
+### Manual Installation
+
+If needed, you can manually install:
+
+1. Go to **Apps**
+2. Search for "Stock Request Purchase"
+3. Click **Install**
+
+## Configuration
+
+No specific configuration is required. The module works out-of-the-box once installed.
+
+<Note>
+Ensure your procurement rules are properly configured to trigger purchase orders for the products and locations you're requesting.
+</Note>
+
+## Usage
+
+### Viewing Purchase Orders from Stock Requests
+
+1. Navigate to **Stock Requests > Stock Requests**
+2. Open a confirmed stock request that triggered a purchase order
+3. Look for the **Purchase Orders** button or smart button
+4. Click to view the related purchase orders
+
+<Info>
+The purchase order button only appears when the confirmation of the stock request results in an immediate purchase order.
+</Info>
+
+### Workflow Example
+
+1. **Create Stock Request**
+   - Product: Raw Material A
+   - Quantity: 100 units
+   - Location: WH/Stock
+
+2. **Confirm Request**
+   - System evaluates procurement rules
+   - Determines purchase is needed
+   - Creates RFQ/Purchase Order
+
+3. **View Purchase Order**
+   - Click the PO smart button on the stock request
+   - Review or process the purchase order
+   - Track delivery status
+
+4. **Receive Goods**
+   - Process the incoming shipment
+   - Stock request is fulfilled when goods arrive
+
+## Technical Details
+
+### Module Information
+
+- **Technical Name**: `stock_request_purchase`
+- **Version**: 18.0.1.0.0
+- **License**: LGPL-3
+- **Category**: Warehouse Management
+- **Author**: ForgeFlow, OCA
+- **Maintainers**: LoisRForgeFlow, etobella
+- **Auto Install**: Yes
+
+### Included Views
+
+The module extends:
+
+- Stock request views with purchase order smart buttons
+- Stock request order views with PO references
+- Purchase order views with stock request links
+
+## Known Issues / Roadmap
+
+<Warning>
+When a Stock Request is cancelled, it does not automatically cancel the quantity included in the related Purchase Order.
+</Warning>
+
+### Current Limitations
+
+- Cancelling a stock request does not reduce or cancel PO quantities
+- Manual adjustment of purchase orders may be needed after cancellation
+- Future versions may include automatic PO line cancellation
+
+### Workaround
+
+If you cancel a stock request that has generated a purchase order:
+
+1. Navigate to the related purchase order
+2. Manually adjust the quantities on PO lines
+3. Or cancel the entire PO if no longer needed
+
+## Integration Scenarios
+
+### Scenario 1: Direct Purchase
+
+```
+Stock Request → Procurement Rules → Purchase Order → Receipt
+```
+
+When procurement rules point directly to a supplier route:
+- Stock request confirmation creates RFQ immediately
+- User can view and manage the PO from stock request
+- Receipt completes the stock request
+
+### Scenario 2: Multi-Step Purchase
+
+```
+Stock Request → Procurement → Purchase → Quality Check → Stock
+```
+
+For locations with quality control:
+- PO is created and visible from stock request
+- Additional quality check steps occur
+- Stock request completes after quality approval
+
+### Scenario 3: Make to Order
+
+```
+Stock Request → Buy Route → Vendor → Receipt → Transfer to Location
+```
+
+For locations supplied via purchase:
+- Request triggers purchase procurement
+- Internal transfer may follow receipt
+- All steps visible from stock request
+
+## Best Practices
+
+### Procurement Rule Setup
+
+- Configure clear buy routes for products
+- Set appropriate lead times on suppliers
+- Define vendor priorities for automatic selection
+
+### Request Management
+
+- Review generated purchase orders promptly
+- Consolidate multiple requests when possible
+- Coordinate with purchasing team for optimal ordering
+
+### Monitoring
+
+- Regularly check stock requests with pending POs
+- Track PO delivery dates against request deadlines
+- Follow up on delayed purchase orders
+
+## Integration with Other Modules
+
+<CardGroup cols={2}>
+  <Card title="Stock Request Core" icon="box" href="/modules/core">
+    Base functionality for stock requests
+  </Card>
+  
+  <Card title="Stock Request MRP" icon="industry" href="/modules/mrp">
+    Similar integration for manufacturing orders
+  </Card>
+  
+  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
+    Combine with kanban for automated purchasing
+  </Card>
+  
+  <Card title="Tier Validation" icon="layer-group" href="/modules/tier-validation">
+    Add approvals before PO creation
+  </Card>
+</CardGroup>
+
+## Support
+
+For issues and feature requests:
+
+- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
+- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_purchase)
+
+<Info>
+Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
+</Info>

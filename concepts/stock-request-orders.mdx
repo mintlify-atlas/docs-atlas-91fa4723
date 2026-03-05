@@ -1,0 +1,350 @@
+---
+title: Stock Request Orders
+description: Understanding Stock Request Orders and how they group multiple requests
+---
+
+A **Stock Request Order** is a container model that groups multiple Stock Requests together. It provides a way to manage several product requests as a single unit with shared parameters.
+
+## Overview
+
+The Stock Request Order model (`stock.request.order`) allows you to create and manage multiple stock requests that share common attributes like warehouse, location, expected date, and shipping policy.
+
+<Info>
+Stock Request Orders are defined in `stock_request/models/stock_request_order.py:8`
+</Info>
+
+## Difference Between Request and Order
+
+<CardGroup cols={2}>
+  <Card title="Stock Request" icon="box">
+    - Represents a **single product** request
+    - Can exist independently or within an order
+    - Has its own state and lifecycle
+    - Directly linked to stock moves and allocations
+  </Card>
+  
+  <Card title="Stock Request Order" icon="boxes-stacked">
+    - Groups **multiple stock requests** together
+    - Provides shared parameters for all child requests
+    - State is computed from child requests
+    - Actions cascade to all child requests
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### Grouping Requests
+
+Orders provide a convenient way to manage multiple product requests:
+
+```python
+stock_request_ids = fields.One2many(
+    "stock.request", inverse_name="order_id", copy=True
+)
+```
+
+All stock requests within an order share common attributes that are synchronized automatically (`stock_request_order.py:122`).
+
+### Shared Parameters
+
+When you set parameters on an order, they cascade to all child requests:
+
+<Steps>
+  <Step title="Warehouse & Location">
+    All requests in the order use the same warehouse and destination location.
+  </Step>
+  
+  <Step title="Expected Date">
+    The expected delivery date is synchronized across all requests.
+  </Step>
+  
+  <Step title="Requested By">
+    The user who requested the products is the same for all items.
+  </Step>
+  
+  <Step title="Shipping Policy">
+    Controls whether products are received individually or all at once.
+  </Step>
+</Steps>
+
+```python
+def change_childs(self):
+    if not self._context.get("no_change_childs", False):
+        for line in self.stock_request_ids:
+            line.warehouse_id = self.warehouse_id
+            line.location_id = self.location_id
+            line.company_id = self.company_id
+            line.picking_policy = self.picking_policy
+            line.expected_date = self.expected_date
+            line.requested_by = self.requested_by
+            line.procurement_group_id = self.procurement_group_id
+```
+
+This method (`stock_request_order.py:289`) ensures child requests stay synchronized with the order.
+
+## States
+
+Unlike Stock Requests, the order's state is **computed** from its child requests:
+
+```python
+@api.depends("stock_request_ids.state")
+def _compute_state(self):
+    for item in self:
+        states = item.stock_request_ids.mapped("state")
+        if not item.stock_request_ids or all(x == "draft" for x in states):
+            item.state = "draft"
+        elif all(x == "cancel" for x in states):
+            item.state = "cancel"
+        elif all(x in ("done", "cancel") for x in states):
+            item.state = "done"
+        else:
+            item.state = "open"
+```
+
+(`stock_request_order.py:211`)
+
+### State Logic
+
+| Order State | Condition |
+|-------------|----------|
+| **Draft** | No child requests OR all child requests are in draft |
+| **Open** | At least one child request is open (in progress) |
+| **Done** | All child requests are done or cancelled |
+| **Cancel** | All child requests are cancelled |
+
+## Essential Fields
+
+### Identification
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | Char | Unique identifier for the order |
+| `state` | Selection | Computed state based on child requests |
+| `requested_by` | Many2one (res.users) | User who created the order |
+
+### Location and Timing
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `warehouse_id` | Many2one (stock.warehouse) | Warehouse for all requests |
+| `location_id` | Many2one (stock.location) | Destination location for all products |
+| `expected_date` | Datetime | Expected delivery date |
+| `picking_policy` | Selection | Shipping policy for all requests |
+
+### Relationships
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `stock_request_ids` | One2many (stock.request) | Child stock requests in this order |
+| `move_ids` | One2many (stock.move) | All stock moves from child requests |
+| `picking_ids` | One2many (stock.picking) | All transfer operations |
+| `procurement_group_id` | Many2one (procurement.group) | Procurement group for generated moves |
+| `route_id` | Many2one (stock.route) | Common route for all requests |
+
+### Counters
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `stock_request_count` | Integer | Number of child requests |
+| `picking_count` | Integer | Number of associated pickings |
+
+## Workflow
+
+### Creating an Order
+
+<Tabs>
+  <Tab title="Manual Creation">
+    ```python
+    order = env['stock.request.order'].create({
+        'expected_date': fields.Datetime.now(),
+        'warehouse_id': warehouse.id,
+        'location_id': location.id,
+        'requested_by': env.user.id,
+    })
+    
+    # Add stock requests
+    env['stock.request'].create({
+        'order_id': order.id,
+        'product_id': product1.id,
+        'product_uom_id': product1.uom_id.id,
+        'product_uom_qty': 5.0,
+    })
+    ```
+  </Tab>
+  
+  <Tab title="From Products">
+    The framework provides a convenient method to create orders from product selection:
+    
+    ```python
+    @api.model
+    def _create_from_product_multiselect(self, products):
+        expected = self.default_get(["expected_date"])["expected_date"]
+        order = self.env["stock.request.order"].create(
+            dict(
+                expected_date=expected,
+                stock_request_ids=[
+                    (0, 0, dict(
+                        product_id=product.id,
+                        product_uom_id=product.uom_id.id,
+                        product_uom_qty=1.0,
+                        expected_date=expected,
+                    ))
+                    for product in products
+                ],
+            )
+        )
+    ```
+    (`stock_request_order.py:389`)
+  </Tab>
+</Tabs>
+
+### Confirming an Order
+
+```python
+def action_confirm(self):
+    if not self.stock_request_ids:
+        raise UserError(
+            _("There should be at least one request item for confirming the order.")
+        )
+    self.mapped("stock_request_ids").action_confirm()
+    return True
+```
+
+Confirming an order confirms all child stock requests simultaneously (`stock_request_order.py:300`).
+
+<Warning>
+An order must have at least one child stock request before it can be confirmed.
+</Warning>
+
+### State Transitions
+
+Orders support the same actions as individual requests, but they cascade to all children:
+
+<Tabs>
+  <Tab title="Confirm">
+    ```python
+    order.action_confirm()
+    # Confirms all child stock requests
+    ```
+  </Tab>
+  
+  <Tab title="Draft">
+    ```python
+    order.action_draft()
+    # Returns all child requests to draft
+    ```
+  </Tab>
+  
+  <Tab title="Cancel">
+    ```python
+    order.action_cancel()
+    # Cancels all child requests and their moves
+    ```
+  </Tab>
+</Tabs>
+
+## Route Management
+
+Orders provide intelligent route computation based on all child requests:
+
+```python
+@api.depends("warehouse_id", "location_id", "stock_request_ids")
+def _compute_route_ids(self):
+    # Computes available routes based on warehouse and location
+    # Filters routes valid for the destination
+    # If requests exist, finds common routes across all requests
+```
+
+(`stock_request_order.py:150`)
+
+### Route Synchronization
+
+You can set a route on the order, and it will apply to all child requests:
+
+```python
+@api.depends("stock_request_ids")
+def _compute_route_id(self):
+    for order in self:
+        if order.stock_request_ids:
+            first_route = order.stock_request_ids[0].route_id or False
+            if any(r.route_id != first_route for r in order.stock_request_ids):
+                first_route = False
+            order.route_id = first_route
+
+def _inverse_route_id(self):
+    for order in self:
+        if order.route_id:
+            order.stock_request_ids.write({"route_id": order.route_id.id})
+```
+
+(`stock_request_order.py:191`)
+
+## Constraints and Validations
+
+<Warning>
+Stock Request Orders enforce these constraints:
+
+- Order names must be unique per company
+- Warehouse and location must belong to the same company
+- Only orders in draft state can be deleted
+- Child requests must have matching warehouse, location, expected date, and other key fields
+</Warning>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Bulk Requests" icon="list">
+    Request multiple products for a project or department at once
+  </Card>
+  
+  <Card title="Scheduled Deliveries" icon="calendar">
+    Group requests with the same expected delivery date
+  </Card>
+  
+  <Card title="Location Restocking" icon="warehouse">
+    Replenish multiple products at a specific location
+  </Card>
+  
+  <Card title="Procurement Planning" icon="clipboard-list">
+    Plan and manage procurement for multiple items together
+  </Card>
+</CardGroup>
+
+## Viewing Related Records
+
+### View Stock Requests
+
+```python
+def action_view_stock_requests(self):
+    action = self.env["ir.actions.act_window"]._for_xml_id(
+        "stock_request.action_stock_request_form"
+    )
+    if len(self.stock_request_ids) > 1:
+        action["domain"] = [("order_id", "in", self.ids)]
+    elif self.stock_request_ids:
+        action["views"] = [
+            (self.env.ref("stock_request.view_stock_request_form").id, "form")
+        ]
+        action["res_id"] = self.stock_request_ids.id
+    return action
+```
+
+(`stock_request_order.py:332`)
+
+### View Transfers
+
+```python
+def action_view_transfer(self):
+    action = self.env["ir.actions.act_window"]._for_xml_id(
+        "stock.action_picking_tree_all"
+    )
+    pickings = self.mapped("picking_ids")
+    if len(pickings) > 1:
+        action["domain"] = [("id", "in", pickings.ids)]
+    elif pickings:
+        action["views"] = [(self.env.ref("stock.view_picking_form").id, "form")]
+        action["res_id"] = pickings.id
+    return action
+```
+
+(`stock_request_order.py:319`)

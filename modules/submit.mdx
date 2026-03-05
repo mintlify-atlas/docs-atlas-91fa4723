@@ -1,0 +1,332 @@
+---
+title: Stock Request Submit
+description: Add submission state for supervisor validation before confirmation
+---
+
+The Stock Request Submit module adds a "Submitted" state to the stock request workflow, allowing supervisors to validate and review requests before they are confirmed and processed. This enables route correction and approval workflows.
+
+## Overview
+
+This module introduces a new "Submitted" state between creation and confirmation of stock requests. The purpose is to allow supervisors to validate submitted requests and correct routes if required before the procurement process begins.
+
+## Key Features
+
+- **Submitted State**: New intermediate state in request workflow
+- **Supervisor Review**: Supervisors can validate requests before confirmation
+- **Route Correction**: Ability to adjust routes before procurement
+- **Approval Workflow**: Structured process for request approval
+- **User Submission**: Regular users submit, supervisors approve
+- **State Tracking**: Clear visibility of request status
+
+## Dependencies
+
+```python
+"depends": ["stock_request"]
+```
+
+<Note>
+This module only requires the base `stock_request` module.
+</Note>
+
+## Installation
+
+1. Ensure `stock_request` module is installed
+2. Install `stock_request_submit` from Apps menu
+3. Update the module list if needed
+
+<Warning>
+The module includes an uninstall hook that restores the original workflow when removed.
+</Warning>
+
+## Workflow Changes
+
+### Without Submit Module
+
+```
+Draft → Confirmed → In Progress → Done
+         ↓
+      Cancelled
+```
+
+### With Submit Module
+
+```
+Draft → Submitted → Confirmed → In Progress → Done
+          ↓           ↓
+      Cancelled   Cancelled
+```
+
+<Info>
+The "Submitted" state sits between Draft and Confirmed, allowing for supervisor review.
+</Info>
+
+## Usage
+
+### For Regular Users (Stock Request / User)
+
+#### Creating and Submitting a Request
+
+1. Navigate to **Stock Requests > Stock Requests**
+2. Click **Create**
+3. Fill in the request details:
+   - Product
+   - Quantity
+   - Location/Warehouse
+   - Expected date
+   - Other relevant information
+4. Click **Submit for Approval** (instead of Confirm)
+5. Wait for supervisor approval
+
+<Note>
+Once submitted, regular users cannot edit the request. They must wait for approval or cancellation.
+</Note>
+
+### For Supervisors (Stock Request / Manager)
+
+#### Reviewing Submitted Requests
+
+1. Navigate to **Stock Requests > Stock Requests**
+2. Filter for "Submitted" state
+3. Open a submitted request
+4. Review the request details:
+   - Product and quantity
+   - Requested location
+   - Expected date
+   - Routes that will be used
+
+#### Approving Requests
+
+If the request is acceptable:
+
+1. Verify all information is correct
+2. Check that routes are appropriate
+3. Click **Confirm** to approve
+4. Request proceeds to procurement
+
+#### Correcting Routes
+
+If routes need adjustment:
+
+1. While in "Submitted" state
+2. Modify the location or other routing parameters
+3. Adjust procurement rules if needed
+4. Click **Confirm** when ready
+
+#### Rejecting Requests
+
+If the request cannot be approved:
+
+1. Click **Cancel**
+2. Optionally add a note explaining the reason
+3. Request is cancelled
+4. User can create a new corrected request
+
+### For Stock Request Orders
+
+The submit workflow also applies to Stock Request Orders:
+
+1. Create a Stock Request Order with multiple lines
+2. Click **Submit for Approval**
+3. Entire order enters "Submitted" state
+4. Supervisor reviews and confirms the whole order
+
+## Technical Details
+
+### Module Information
+
+- **Technical Name**: `stock_request_submit`
+- **Version**: 18.0.1.0.0
+- **License**: LGPL-3
+- **Category**: Warehouse Management
+- **Author**: Open Source Integrators, OCA
+- **Uninstall Hook**: Yes
+
+### State Definition
+
+The module adds:
+
+- **State**: `submitted`
+- **Label**: "Submitted"
+- **Sequence**: Between draft and open
+- **Access**: Read-only for most fields
+
+### Views Modified
+
+- Stock request form view (new Submit button)
+- Stock request order form view (new Submit button)
+- State field with new option
+- Filter for submitted requests
+
+### Access Control
+
+#### Stock Request / User
+
+- Can submit own requests
+- Cannot confirm submitted requests
+- Cannot edit submitted requests
+
+#### Stock Request / Manager
+
+- Can view all submitted requests
+- Can confirm submitted requests
+- Can edit submitted requests if needed
+- Can cancel submitted requests
+
+## Use Cases
+
+### Budget Approval
+
+**Scenario**: Requests need budget verification
+
+1. User submits request for expensive items
+2. Manager reviews cost
+3. Verifies budget availability
+4. Approves or rejects based on budget
+
+### Route Optimization
+
+**Scenario**: Multiple fulfillment options
+
+1. User requests product at Location A
+2. Supervisor reviews and sees better route exists
+3. Adjusts to use closer warehouse
+4. Confirms with optimized route
+
+### Policy Compliance
+
+**Scenario**: Ensure requests meet company policies
+
+1. User submits request for controlled items
+2. Supervisor verifies policy compliance
+3. Checks authorization
+4. Approves if compliant
+
+### Quantity Validation
+
+**Scenario**: Verify requested quantities are reasonable
+
+1. User requests large quantity
+2. Supervisor reviews usage patterns
+3. Adjusts quantity if excessive
+4. Confirms appropriate amount
+
+## Best Practices
+
+### For Users
+
+- Provide complete information in requests
+- Include notes on special requirements
+- Set realistic expected dates
+- Don't submit duplicate requests
+- Check status regularly
+
+### For Supervisors
+
+- Review submitted requests promptly
+- Communicate rejections with clear reasons
+- Optimize routes when possible
+- Track approval patterns for process improvements
+- Set up filters for priority requests
+
+### For Administrators
+
+- Train users on submission process
+- Define clear approval criteria
+- Assign appropriate supervisors
+- Monitor approval times
+- Document route optimization guidelines
+
+## Notification Setup
+
+<Info>
+Consider setting up email notifications for:
+- Users when their requests are approved/rejected
+- Supervisors when new requests are submitted
+</Info>
+
+To configure notifications:
+
+1. Go to **Settings > Technical > Automation > Automated Actions**
+2. Create actions for state changes
+3. Add email templates
+4. Configure recipients
+
+## Reporting and Analytics
+
+### Useful Reports
+
+- Pending submitted requests
+- Average approval time
+- Rejection rate by user/product
+- Route corrections made
+- Requests by submitter
+
+### KPIs to Track
+
+- Time in submitted state
+- Approval/rejection ratio
+- Route correction frequency
+- User submission quality
+
+## Troubleshooting
+
+### Cannot Submit Request
+
+<Warning>
+If Submit button is not visible:
+</Warning>
+
+- Ensure module is installed and updated
+- Check user has permission to submit
+- Verify request is in Draft state
+- Refresh browser cache
+
+### Stuck in Submitted State
+
+- Check if supervisor has been notified
+- Verify supervisor has Manager role
+- Ensure no technical errors in logs
+- Contact supervisor directly if urgent
+
+### Cannot Edit After Submission
+
+This is by design:
+
+- Only supervisors can edit submitted requests
+- Users must cancel and create new request
+- Or ask supervisor to send back to draft
+
+## Integration with Other Modules
+
+<CardGroup cols={2}>
+  <Card title="Stock Request Core" icon="box" href="/modules/core">
+    Base functionality for stock requests
+  </Card>
+  
+  <Card title="Tier Validation" icon="layer-group" href="/modules/tier-validation">
+    Add multi-tier approval on top of submit
+  </Card>
+  
+  <Card title="Stock Request Direction" icon="arrows-left-right" href="/modules/direction">
+    Combine submission with directional requests
+  </Card>
+  
+  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
+    Submit workflow for kanban-based requests
+  </Card>
+</CardGroup>
+
+<Note>
+The Submit module works well with Tier Validation for multi-level approvals.
+</Note>
+
+## Support
+
+For issues and feature requests:
+
+- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
+- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_submit)
+
+<Info>
+Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
+</Info>

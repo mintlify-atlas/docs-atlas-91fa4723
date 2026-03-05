@@ -1,0 +1,293 @@
+---
+title: Creating Stock Requests
+description: Step-by-step guide to creating and managing stock requests
+icon: plus-circle
+---
+
+Stock Requests allow users to request products to be transferred to their chosen location. This guide covers creating requests through the UI and programmatically.
+
+## Creating a Request via the UI
+
+<Steps>
+  <Step title="Navigate to Stock Requests">
+    Go to **Stock Requests → Stock Requests** in the main menu
+  </Step>
+  
+  <Step title="Create New Request">
+    Click the **Create** button to start a new stock request
+  </Step>
+  
+  <Step title="Fill Required Fields">
+    Complete the following required information:
+    
+    - **Product**: Select the product you need (must be type 'Storable Product' or 'Consumable')
+    - **Quantity**: Enter the quantity needed
+    - **Unit of Measure**: Defaults to product UoM, can be changed to compatible units
+    - **Location**: Choose the destination location for the products
+    - **Warehouse**: Select the warehouse (auto-updates when location is selected)
+    - **Expected Date**: Date when you expect to receive the goods
+  </Step>
+  
+  <Step title="Configure Optional Settings">
+    Set additional options as needed:
+    
+    - **Route**: Choose a specific route if you need to control how the request is fulfilled
+    - **Procurement Group**: Link to a procurement group to organize related moves
+    - **Shipping Policy**: 
+      - *Receive each product when available* (default)
+      - *Receive all products at once*
+  </Step>
+  
+  <Step title="Confirm the Request">
+    Click the **Confirm** button. This will:
+    
+    - Change the state from "Draft" to "In progress"
+    - Evaluate procurement rules for the selected location
+    - Generate stock moves/transfers as needed
+    - Create purchase orders or manufacturing orders if required by rules
+  </Step>
+</Steps>
+
+<Note>
+The **Requested By** field defaults to the current user. This cannot be changed manually but is inherited from Stock Request Orders when creating requests through an order.
+</Note>
+
+## Required Fields Explained
+
+### Product Selection
+
+Only products with type 'Storable Product' (`product`) or 'Consumable' (`consu`) can be requested:
+
+```python
+product_id = fields.Many2one(
+    "product.product",
+    "Product",
+    domain=["(type", "in", ["product", "consu"])],
+    required=True,
+)
+```
+
+<Warning>
+Service products cannot be requested through Stock Requests.
+</Warning>
+
+### Quantity Validation
+
+The system enforces quantity constraints:
+
+- In **Draft** state: Quantity must be strictly positive (> 0)
+- In other states: Quantity cannot be negative (>= 0)
+
+```python
+if rec.state == "draft" and rec.product_qty <= 0:
+    raise ValidationError(
+        _("Stock Request product quantity has to be strictly positive.")
+    )
+```
+
+### Location Selection
+
+By default, only internal and transit locations are allowed. If your company enables virtual locations:
+
+```python
+location_id = fields.Many2one(
+    comodel_name="stock.location",
+    domain="not allow_virtual_location and "
+    "[('usage', 'in', ['internal', 'transit'])] or []",
+    required=True,
+)
+```
+
+## Understanding Request States
+
+Stock Requests progress through the following states:
+
+<Card title="Draft" icon="file">
+  Initial state when created. Request can be freely edited and deleted.
+</Card>
+
+<Card title="In Progress" icon="spinner">
+  Request has been confirmed and procurement is running. Related transfers are being processed.
+</Card>
+
+<Card title="Done" icon="check-circle">
+  All requested quantities have been fulfilled.
+</Card>
+
+<Card title="Cancelled" icon="times-circle">
+  Request was cancelled. Related pending stock moves are also cancelled.
+</Card>
+
+## Viewing Generated Transfers
+
+After confirmation, you can view related transfers:
+
+<Steps>
+  <Step title="Access Transfers Button">
+    On the Stock Request form, click the **Transfers** smart button at the top
+  </Step>
+  
+  <Step title="View Transfer Details">
+    This opens a list of all stock pickings generated from this request
+    
+    - Internal transfers
+    - Incoming shipments (if generated from purchase)
+    - Manufacturing moves (if generated from MRP)
+  </Step>
+</Steps>
+
+```python
+def action_view_transfer(self):
+    action = self.env["ir.actions.act_window"]._for_xml_id(
+        "stock.action_picking_tree_all"
+    )
+    pickings = self.mapped("picking_ids")
+    if len(pickings) > 1:
+        action["domain"] = [("id", "in", pickings.ids)]
+    elif pickings:
+        action["views"] = [(self.env.ref("stock.view_picking_form").id, "form")]
+        action["res_id"] = pickings.id
+    return action
+```
+
+## Creating Requests Programmatically
+
+You can create Stock Requests through code or API:
+
+### Basic Example
+
+```python
+StockRequest = self.env['stock.request']
+
+request = StockRequest.create({
+    'product_id': product.id,
+    'product_uom_id': product.uom_id.id,
+    'product_uom_qty': 10.0,
+    'location_id': location.id,
+    'warehouse_id': warehouse.id,
+    'expected_date': fields.Datetime.now(),
+})
+
+# Confirm the request
+request.action_confirm()
+```
+
+<Note>
+The `name` field is auto-generated from the sequence `stock.request` if not provided or set to "/".
+</Note>
+
+### With Custom Route
+
+```python
+request = StockRequest.create({
+    'product_id': product.id,
+    'product_uom_id': product.uom_id.id,
+    'product_uom_qty': 5.0,
+    'location_id': location.id,
+    'warehouse_id': warehouse.id,
+    'expected_date': fields.Datetime.now(),
+    'route_id': specific_route.id,  # Force specific procurement route
+})
+request.action_confirm()
+```
+
+### With Procurement Group
+
+```python
+# Create procurement group for related requests
+group = self.env['procurement.group'].create({
+    'name': 'Project Alpha Materials'
+})
+
+request = StockRequest.create({
+    'product_id': product.id,
+    'product_uom_id': product.uom_id.id,
+    'product_uom_qty': 20.0,
+    'location_id': location.id,
+    'warehouse_id': warehouse.id,
+    'procurement_group_id': group.id,
+    'expected_date': fields.Datetime.now(),
+})
+request.action_confirm()
+```
+
+## Quantity Tracking
+
+The system automatically tracks quantity progress:
+
+```python
+qty_in_progress = fields.Float(
+    help="Quantity in progress.",
+    readonly=True,
+    compute="_compute_qty",
+)
+
+qty_done = fields.Float(
+    help="Quantity completed",
+    readonly=True,
+    compute="_compute_qty",
+)
+
+qty_cancelled = fields.Float(
+    help="Quantity cancelled",
+    readonly=True,
+    compute="_compute_qty",
+)
+```
+
+These computed fields show:
+- **In Progress**: Quantity currently being processed in moves
+- **Done**: Quantity successfully delivered
+- **Cancelled**: Quantity that was cancelled
+
+## Cancelling Requests
+
+To cancel a Stock Request:
+
+<Steps>
+  <Step title="Open the Request">
+    Navigate to the Stock Request you want to cancel
+  </Step>
+  
+  <Step title="Click Cancel Button">
+    Click the **Cancel** button in the top action bar
+  </Step>
+  
+  <Step title="Confirm Cancellation">
+    The system will:
+    - Set the request state to "Cancelled"
+    - Cancel all related pending stock moves
+    - Keep historical data for reporting
+  </Step>
+</Steps>
+
+```python
+def action_cancel(self):
+    self.sudo().mapped("move_ids")._action_cancel()
+    self.write({"state": "cancel"})
+    return True
+```
+
+<Warning>
+Cancelling a Stock Request does NOT cancel generated Purchase Orders or Manufacturing Orders. Those must be cancelled separately if needed.
+</Warning>
+
+## Best Practices
+
+<Tip>
+**Use Procurement Groups** to organize related requests. This helps track all materials for a project or batch together.
+</Tip>
+
+<Tip>
+**Set Realistic Expected Dates** to help the procurement system prioritize and schedule transfers appropriately.
+</Tip>
+
+<Tip>
+**Choose the Right Route** if you have multiple ways to fulfill requests. Otherwise, let the system select automatically based on configured rules.
+</Tip>
+
+## Next Steps
+
+- Learn about [managing Stock Request Orders](/guides/managing-orders)
+- Understand [procurement rules](/guides/procurement-rules)
+- Explore [integrations](/guides/integrations) with Purchase and MRP

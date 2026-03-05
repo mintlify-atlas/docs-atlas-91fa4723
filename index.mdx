@@ -1,97 +1,136 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Stock Request Documentation"
+description: "Odoo framework extension for managing internal stock requests with procurement automation and multi-module integration"
 ---
 
-## Setting up
+<div style={{background: 'linear-gradient(135deg, #94cb04 0%, #545454 100%)', padding: '3rem 2rem', borderRadius: '8px', marginBottom: '2rem'}}>
+  <h1 style={{color: '#ffffff', fontSize: '48px', fontWeight: '700', marginBottom: '1rem', fontFamily: 'Inter'}}>Stock Request</h1>
+  <p style={{color: '#ffffff', fontSize: '18px', marginBottom: '2rem', fontFamily: 'Inter'}}>
+    Streamline your Odoo inventory management with intelligent stock request workflows, automatic procurement, and seamless integration with Purchase and Manufacturing.
+  </p>
+  <div style={{display: 'flex', gap: '1rem', flexWrap: 'wrap'}}>
+    <a href="/quickstart" style={{background: '#ffffff', color: '#1a1a1a', padding: '0.75rem 1.5rem', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', fontFamily: 'Inter'}}>
+      Get Started
+    </a>
+    <a href="https://github.com/OCA/stock-logistics-request" style={{background: 'transparent', color: '#ffffff', padding: '0.75rem 1.5rem', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', border: '2px solid #ffffff', fontFamily: 'Inter'}}>
+      View on GitHub
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## Key Features
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Request Management" icon="clipboard-list" href="/concepts/stock-requests">
+    Create and track stock requests with a complete draft → open → done workflow
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Automatic Procurement" icon="gears" href="/concepts/workflow">
+    Automatic evaluation of procurement rules and transfer generation
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Purchase Integration" icon="cart-shopping" href="/modules/purchase">
+    Seamless integration with Purchase Orders for automatic PO creation
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="MRP Integration" icon="industry" href="/modules/mrp">
+    Manufacturing Order integration for production-based stock requests
   </Card>
-</Columns>
+  <Card title="Kanban Orders" icon="table-columns" href="/modules/kanban">
+    Group requests into orders with kanban-style management
+  </Card>
+  <Card title="Tier Validation" icon="shield-check" href="/modules/tier-validation">
+    Multi-level approval workflows for stock requests
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Quick Start
 
-Everything you need to create world-class documentation.
+<Steps>
+  <Step title="Install the Module">
+    Install the `stock_request` module in your Odoo instance along with any extension modules you need.
+    
+    ```bash
+    # Install base module
+    odoo -i stock_request
+    
+    # Install with extensions
+    odoo -i stock_request,stock_request_purchase,stock_request_mrp
+    ```
+  </Step>
+  
+  <Step title="Configure Permissions">
+    Assign users to **Stock Request / User** or **Stock Request / Manager** groups to control access levels.
+  </Step>
+  
+  <Step title="Create Your First Request">
+    Navigate to **Stock Requests → Stock Requests** and create a new request with product, quantity, and location.
+    
+    ```python
+    # Example: Create a stock request programmatically
+    stock_request = env['stock.request'].create({
+        'product_id': product.id,
+        'product_uom_qty': 10.0,
+        'location_id': location.id,
+        'expected_date': fields.Datetime.now(),
+    })
+    stock_request.action_confirm()
+    ```
+  </Step>
+</Steps>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Architecture Overview
 
-## Need inspiration?
+The Stock Request framework extends Odoo's warehouse management with a modular architecture:
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={3}>
+  <Card title="Core Module" icon="cube" href="/modules/core">
+    Base stock request functionality and workflow engine
+  </Card>
+  <Card title="Extension Modules" icon="puzzle-piece" href="/modules/overview">
+    Purchase, MRP, BOM, Kanban, and more
+  </Card>
+  <Card title="API Models" icon="code" href="/api/stock-request">
+    Python models and methods for integration
+  </Card>
+</CardGroup>
+
+## Available Modules
+
+<AccordionGroup>
+  <Accordion title="Core Modules">
+    - **stock_request**: Base module with request management and workflow
+    - **stock_request_order**: Group requests into orders for batch processing
+  </Accordion>
+  
+  <Accordion title="Integration Modules">
+    - **stock_request_purchase**: Automatic Purchase Order creation
+    - **stock_request_mrp**: Manufacturing Order integration
+    - **stock_request_bom**: Bill of Materials component explosion
+  </Accordion>
+  
+  <Accordion title="Workflow Modules">
+    - **stock_request_kanban**: Kanban card-based reordering
+    - **stock_request_submit**: Add submit state to request workflow
+    - **stock_request_tier_validation**: Multi-tier approval process
+  </Accordion>
+  
+  <Accordion title="Utility Modules">
+    - **stock_request_direction**: Specify direction (to/from warehouse)
+    - **stock_return_request**: Handle return requests
+  </Accordion>
+</AccordionGroup>
+
+## Community
+
+Stock Request is maintained by the [Odoo Community Association (OCA)](https://odoo-community.org/), a nonprofit organization supporting collaborative Odoo development.
+
+<CardGroup cols={2}>
+  <Card title="Report Issues" icon="bug" href="https://github.com/OCA/stock-logistics-request/issues">
+    Report bugs or request features on GitHub
+  </Card>
+  <Card title="Contribute" icon="code-pull-request" href="https://odoo-community.org/page/Contribute">
+    Learn how to contribute to OCA projects
+  </Card>
+</CardGroup>
+
+<Note>
+This documentation covers version 18.0 of the Stock Request modules. For other versions, please refer to the appropriate branch in the GitHub repository.
+</Note>

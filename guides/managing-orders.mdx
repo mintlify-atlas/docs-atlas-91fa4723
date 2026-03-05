@@ -1,0 +1,383 @@
+---
+title: Managing Stock Request Orders
+description: Organize and batch process multiple stock requests together
+icon: list-check
+---
+
+Stock Request Orders allow you to group multiple Stock Requests together and manage them as a single unit. This is useful for organizing requests by project, department, or time period.
+
+## What is a Stock Request Order?
+
+A Stock Request Order is a container that groups multiple Stock Requests with common attributes:
+
+- Same warehouse and location
+- Same expected date
+- Same requested by user
+- Same procurement group
+- Same shipping policy
+
+All requests within an order must share these attributes to maintain consistency.
+
+## Creating a Stock Request Order
+
+<Steps>
+  <Step title="Navigate to Orders">
+    Go to **Stock Requests → Stock Request Orders** in the main menu
+  </Step>
+  
+  <Step title="Create New Order">
+    Click the **Create** button to start a new order
+  </Step>
+  
+  <Step title="Set Common Attributes">
+    Configure the order-level settings that will apply to all requests:
+    
+    - **Warehouse**: Select the warehouse
+    - **Location**: Choose the destination location
+    - **Expected Date**: When you need the items
+    - **Requested By**: The user making the request (defaults to you)
+    - **Shipping Policy**: Delivery method for all items
+    - **Procurement Group**: Optional, for organizing related moves
+  </Step>
+  
+  <Step title="Add Stock Request Lines">
+    In the Stock Request Lines tab, add products:
+    
+    - Click **Add a line**
+    - Select the product
+    - Enter the quantity
+    - The warehouse, location, and other common fields are automatically inherited from the order
+  </Step>
+  
+  <Step title="Confirm the Order">
+    Click **Confirm** to process all requests in the order simultaneously
+  </Step>
+</Steps>
+
+<Note>
+The order name is auto-generated from the sequence `stock.request.order` when saved.
+</Note>
+
+## Order State Management
+
+The order state is computed from its request lines:
+
+```python
+@api.depends("stock_request_ids.state")
+def _compute_state(self):
+    for item in self:
+        states = item.stock_request_ids.mapped("state")
+        if not item.stock_request_ids or all(x == "draft" for x in states):
+            item.state = "draft"
+        elif all(x == "cancel" for x in states):
+            item.state = "cancel"
+        elif all(x in ("done", "cancel") for x in states):
+            item.state = "done"
+        else:
+            item.state = "open"
+```
+
+<Card title="Draft" icon="file">
+  All requests in the order are in draft state or order is empty.
+</Card>
+
+<Card title="In Progress" icon="spinner">
+  At least one request is being processed.
+</Card>
+
+<Card title="Done" icon="check-circle">
+  All requests are either done or cancelled.
+</Card>
+
+<Card title="Cancelled" icon="times-circle">
+  All requests in the order are cancelled.
+</Card>
+
+## Adding Requests to an Order
+
+You can add requests to an order in two ways:
+
+### During Order Creation
+
+Add lines directly in the order form:
+
+```python
+order = self.env['stock.request.order'].create({
+    'expected_date': fields.Datetime.now(),
+    'stock_request_ids': [
+        (0, 0, {
+            'product_id': product1.id,
+            'product_uom_id': product1.uom_id.id,
+            'product_uom_qty': 10.0,
+        }),
+        (0, 0, {
+            'product_id': product2.id,
+            'product_uom_id': product2.uom_id.id,
+            'product_uom_qty': 5.0,
+        }),
+    ],
+})
+```
+
+### From Product Selection
+
+Create an order directly from selected products:
+
+```python
+@api.model
+def _create_from_product_multiselect(self, products):
+    """Create order from selected products."""
+    if products._name == "product.template":
+        products = self.env["product.product"].search(
+            [("product_tmpl_id", "in", products.ids)]
+        )
+    
+    expected = self.default_get(["expected_date"])["expected_date"]
+    order = self.env["stock.request.order"].create(
+        dict(
+            expected_date=expected,
+            stock_request_ids=[
+                (0, 0, dict(
+                    product_id=product.id,
+                    product_uom_id=product.uom_id.id,
+                    product_uom_qty=1.0,
+                    expected_date=expected,
+                ))
+                for product in products
+            ],
+        )
+    )
+    return order
+```
+
+## Consistency Constraints
+
+The system enforces that all requests in an order share common attributes:
+
+<Tabs>
+  <Tab title="Warehouse">
+    ```python
+    @api.constrains("order_id", "warehouse_id")
+    def check_order_warehouse_id(self):
+        for stock_request in self:
+            if (
+                stock_request.order_id
+                and stock_request.order_id.warehouse_id != stock_request.warehouse_id
+            ):
+                raise ValidationError(_("Warehouse must be equal to the order"))
+    ```
+  </Tab>
+  
+  <Tab title="Location">
+    ```python
+    @api.constrains("order_id", "location_id")
+    def check_order_location(self):
+        for stock_request in self:
+            if (
+                stock_request.order_id
+                and stock_request.order_id.location_id != stock_request.location_id
+            ):
+                raise ValidationError(_("Location must be equal to the order"))
+    ```
+  </Tab>
+  
+  <Tab title="Expected Date">
+    ```python
+    @api.constrains("order_id", "expected_date")
+    def check_order_expected_date(self):
+        for stock_request in self:
+            if (
+                stock_request.order_id
+                and stock_request.order_id.expected_date != stock_request.expected_date
+            ):
+                raise ValidationError(_("Expected date must be equal to the order"))
+    ```
+  </Tab>
+  
+  <Tab title="Requested By">
+    ```python
+    @api.constrains("order_id", "requested_by")
+    def check_order_requested_by(self):
+        for stock_request in self:
+            if (
+                stock_request.order_id
+                and stock_request.order_id.requested_by != stock_request.requested_by
+            ):
+                raise ValidationError(_("Requested by must be equal to the order"))
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+You cannot save a request with values that differ from its parent order. Change the order-level fields first, which will cascade to all requests.
+</Warning>
+
+## Order Actions
+
+### Confirm Order
+
+Confirming an order confirms all its requests:
+
+```python
+def action_confirm(self):
+    if not self.stock_request_ids:
+        raise UserError(
+            _("There should be at least one request item for confirming the order.")
+        )
+    self.mapped("stock_request_ids").action_confirm()
+    return True
+```
+
+<Note>
+The order must contain at least one request line to be confirmed.
+</Note>
+
+### View Transfers
+
+Access all transfers generated from the order's requests:
+
+```python
+def action_view_transfer(self):
+    action = self.env["ir.actions.act_window"]._for_xml_id(
+        "stock.action_picking_tree_all"
+    )
+    pickings = self.mapped("picking_ids")
+    if len(pickings) > 1:
+        action["domain"] = [("id", "in", pickings.ids)]
+    elif pickings:
+        action["views"] = [(self.env.ref("stock.view_picking_form").id, "form")]
+        action["res_id"] = pickings.id
+    return action
+```
+
+### View Stock Requests
+
+Access the individual requests within the order:
+
+```python
+def action_view_stock_requests(self):
+    action = self.env["ir.actions.act_window"]._for_xml_id(
+        "stock_request.action_stock_request_form"
+    )
+    if len(self.stock_request_ids) > 1:
+        action["domain"] = [("order_id", "in", self.ids)]
+    elif self.stock_request_ids:
+        action["views"] = [
+            (self.env.ref("stock_request.view_stock_request_form").id, "form")
+        ]
+        action["res_id"] = self.stock_request_ids.id
+    return action
+```
+
+## Route Management
+
+Orders can specify a route that applies to all requests:
+
+```python
+route_id = fields.Many2one(
+    "stock.route",
+    compute="_compute_route_id",
+    inverse="_inverse_route_id",
+    readonly=True,
+    store=True,
+    help="The route related to a stock request order",
+)
+
+@api.depends("stock_request_ids")
+def _compute_route_id(self):
+    for order in self:
+        if order.stock_request_ids:
+            first_route = order.stock_request_ids[0].route_id or False
+            if any(r.route_id != first_route for r in order.stock_request_ids):
+                first_route = False
+            order.route_id = first_route
+
+def _inverse_route_id(self):
+    for order in self:
+        if order.route_id:
+            order.stock_request_ids.write({"route_id": order.route_id.id})
+```
+
+When you set a route on the order, it automatically applies to all requests.
+
+## Cascading Changes
+
+Changes to order-level fields cascade to all requests:
+
+```python
+def change_childs(self):
+    if not self._context.get("no_change_childs", False):
+        for line in self.stock_request_ids:
+            line.warehouse_id = self.warehouse_id
+            line.location_id = self.location_id
+            line.company_id = self.company_id
+            line.picking_policy = self.picking_policy
+            line.expected_date = self.expected_date
+            line.requested_by = self.requested_by
+            line.procurement_group_id = self.procurement_group_id
+```
+
+This ensures all requests remain synchronized with the order.
+
+## Batch Processing Benefits
+
+<Card title="Simplified Management" icon="sliders">
+  Update common fields once at the order level instead of editing each request individually.
+</Card>
+
+<Card title="Consistent Fulfillment" icon="check-double">
+  Ensure all requests are processed with the same parameters and through the same routes.
+</Card>
+
+<Card title="Better Organization" icon="folder">
+  Group related requests by project, department, or requisition for easier tracking and reporting.
+</Card>
+
+<Card title="Atomic Operations" icon="atom">
+  Confirm or cancel all requests in an order with a single action.
+</Card>
+
+## Integration with Kanban
+
+The `stock_request_kanban` module extends orders with barcode scanning capabilities:
+
+- Scan kanban cards to add requests to an order
+- Batch process multiple kanban cards at once
+- Create orders from consumed product cards
+
+See the [Kanban Integration documentation](/guides/integrations#kanban) for details.
+
+## Best Practices
+
+<Tip>
+**Use Orders for Batch Requisitions**: When requesting multiple products for a project or department, create an order to keep them organized.
+</Tip>
+
+<Tip>
+**Set Route at Order Level**: If all items should follow the same procurement route, set it on the order to apply to all requests automatically.
+</Tip>
+
+<Tip>
+**Name Your Procurement Groups**: Use descriptive names for procurement groups to make tracking and reporting easier.
+</Tip>
+
+## Deletion Rules
+
+Orders can only be deleted in draft state:
+
+```python
+def unlink(self):
+    if self.filtered(lambda r: r.state != "draft"):
+        raise UserError(_("Only orders on draft state can be unlinked"))
+    return super().unlink()
+```
+
+<Warning>
+Deleting an order also deletes all its requests. This action cannot be undone.
+</Warning>
+
+## Next Steps
+
+- Understand [procurement rules](/guides/procurement-rules) that fulfill orders
+- Explore [integrations](/guides/integrations) for Purchase and MRP
+- Learn about [user permissions](/guides/user-permissions) for orders
