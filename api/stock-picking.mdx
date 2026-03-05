@@ -1,123 +1,213 @@
 ---
-title: "stock.picking Extension"
-description: "Stock Request extensions to the stock.picking model"
+title: "stock.picking"
+description: "Extensions to the standard Odoo stock.picking model"
 ---
 
 ## Overview
 
-The Stock Request module extends Odoo's standard `stock.picking` model to provide visibility into stock requests at the picking level. This extension aggregates stock request information from the individual moves within a picking and provides a convenient action to view all related requests.
+The Stock Request framework extends the standard Odoo `stock.picking` model to provide visibility into which stock requests are associated with a picking. This enables users to track the relationship between pickings and the stock requests they fulfill.
 
-**Base Model**: `stock.picking`
+## Model Information
 
-**Purpose**: Aggregate and display stock requests associated with a picking operation, providing quick access to request details from the picking form.
-
-## Added Fields
-
-<ParamField path="stock_request_ids" type="One2many" computed>
-  Collection of all stock requests associated with this picking's moves. This field aggregates requests from all moves in the picking, providing a picking-level view of related requests.
-  
-  - **Comodel**: `stock.request`
-  - **Compute Method**: `_compute_stock_request_ids`
+<ParamField path="_inherit" type="string">
+  stock.picking
 </ParamField>
 
-<ParamField path="stock_request_count" type="Integer" computed>
-  The total number of unique stock requests associated with this picking. Used to display a badge or counter in the user interface.
-  
-  - **Compute Method**: `_compute_stock_request_ids`
+<ParamField path="_name" type="string">
+  stock.picking
 </ParamField>
 
-## Added Methods
+---
 
-### _compute_stock_request_ids()
+## Fields
 
-Computes both the stock requests and the count of requests associated with this picking by aggregating data from all moves.
+### Stock Request Module
 
-**Dependencies**: `move_ids`
+<ResponseField name="stock_request_ids" type="One2many" computed="true">
+  Computed field that returns all stock requests linked to this picking through its moves.
+  
+  <Expandable title="properties">
+    <ResponseField name="comodel_name" type="string">
+      stock.request
+    </ResponseField>
+    <ResponseField name="string" type="string">
+      Stock Requests
+    </ResponseField>
+    <ResponseField name="compute" type="string">
+      _compute_stock_request_ids
+    </ResponseField>
+    <ResponseField name="depends" type="list">
+      move_ids
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="stock_request_count" type="Integer" computed="true">
+  Number of stock requests associated with this picking. Used for displaying smart buttons in the UI.
+  
+  <Expandable title="properties">
+    <ResponseField name="string" type="string">
+      Stock Request #
+    </ResponseField>
+    <ResponseField name="compute" type="string">
+      _compute_stock_request_ids
+    </ResponseField>
+    <ResponseField name="depends" type="list">
+      move_ids
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Stock Return Request Module
+
+<ResponseField name="stock_return_request_id" type="Many2one">
+  Links this picking to a stock return request when the picking is created as part of a return process.
+  
+  <Expandable title="properties">
+    <ResponseField name="comodel_name" type="string">
+      stock.return.request
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Methods
+
+### Stock Request Module
+
+<ParamField path="_compute_stock_request_ids" type="method">
+  Computes both the stock_request_ids and stock_request_count fields by aggregating stock requests from all moves in the picking.
+  
+  **Depends on:** `move_ids`
+  
+  ```python
+  @api.depends("move_ids")
+  def _compute_stock_request_ids(self):
+      for rec in self:
+          rec.stock_request_ids = rec.move_ids.mapped("stock_request_ids")
+          rec.stock_request_count = len(rec.stock_request_ids)
+  ```
+</ParamField>
+
+<ParamField path="action_view_stock_request" type="method">
+  Action method to view stock requests associated with this picking. Opens either a list view (if multiple requests) or a form view (if single request).
+  
+  **Returns:** Dictionary representing an ir.actions.act_window action
+  
+  ```python
+  def action_view_stock_request(self):
+      """
+      :return dict: dictionary value for created view
+      """
+      action = self.env["ir.actions.act_window"]._for_xml_id(
+          "stock_request.action_stock_request_form"
+      )
+
+      requests = self.mapped("stock_request_ids")
+      if len(requests) > 1:
+          action["domain"] = [("id", "in", requests.ids)]
+      elif requests:
+          action["views"] = [
+              (self.env.ref("stock_request.view_stock_request_form").id, "form")
+          ]
+          action["res_id"] = requests.id
+      return action
+  ```
+  
+  <Info>
+    This method is typically called from a smart button in the picking form view to navigate to related stock requests.
+  </Info>
+</ParamField>
+
+### Stock Return Request Module
+
+<ParamField path="_create_backorder" type="method">
+  Extends the backorder creation to ensure that backorders inherit the stock_return_request_id from their parent picking.
+  
+  **Returns:** Recordset of created backorders
+  
+  ```python
+  def _create_backorder(self):
+      """When we make a backorder of a picking in a return request, we
+      want to have it linked to the return request itself"""
+      backorders = super()._create_backorder()
+      rbo = backorders.filtered("backorder_id.stock_return_request_id")
+      for backorder in rbo:
+          backorder.stock_return_request_id = (
+              backorder.backorder_id.stock_return_request_id
+          )
+      return backorders
+  ```
+  
+  <Note>
+    This ensures continuity of the return request link when a picking is partially processed and a backorder is created.
+  </Note>
+</ParamField>
+
+---
+
+## Usage Examples
+
+### Accessing Stock Requests from a Picking
 
 ```python
-@api.depends("move_ids")
-def _compute_stock_request_ids(self):
-    for rec in self:
-        rec.stock_request_ids = rec.move_ids.mapped("stock_request_ids")
-        rec.stock_request_count = len(rec.stock_request_ids)
+# Get all stock requests linked to a picking
+picking = self.env['stock.picking'].browse(picking_id)
+stock_requests = picking.stock_request_ids
+
+# Get the count of stock requests
+request_count = picking.stock_request_count
 ```
 
-<Info>
-  This method traverses the relationship: picking → moves → allocations → requests, flattening the result into a single list of unique requests.
-</Info>
-
-### action_view_stock_request()
-
-Opens a view displaying all stock requests associated with this picking. The view adapts based on the number of requests found.
-
-**Returns**: `dict` - Action dictionary for the window action
+### Opening Stock Requests View
 
 ```python
-def action_view_stock_request(self):
-    """
-    :return dict: dictionary value for created view
-    """
-    action = self.env["ir.actions.act_window"]._for_xml_id(
-        "stock_request.action_stock_request_form"
-    )
-
-    requests = self.mapped("stock_request_ids")
-    if len(requests) > 1:
-        action["domain"] = [("id", "in", requests.ids)]
-    elif requests:
-        action["views"] = [
-            (self.env.ref("stock_request.view_stock_request_form").id, "form")
-        ]
-        action["res_id"] = requests.id
-    return action
+# Open the stock requests view from a picking
+picking = self.env['stock.picking'].browse(picking_id)
+action = picking.action_view_stock_request()
+return action
 ```
 
-<Note>
-  **Behavior**:
-  - **Multiple requests**: Opens a list view with all requests
-  - **Single request**: Opens the form view for that specific request
-  - **No requests**: Returns empty action (no records to display)
-</Note>
-
-## User Interface Integration
-
-This extension is typically paired with UI elements in the picking form view:
-
-- **Smart button**: Displays the count of stock requests and opens the request view when clicked
-- **Field visibility**: Shows which requests are being fulfilled by this picking
+### Working with Return Request Pickings
 
 ```python
-# Example smart button configuration (in XML view)
-<button name="action_view_stock_request"
-        type="object"
-        class="oe_stat_button"
-        icon="fa-list">
-    <field name="stock_request_count" widget="statinfo" 
-           string="Requests"/>
-</button>
+# Check if a picking is linked to a return request
+picking = self.env['stock.picking'].browse(picking_id)
+if picking.stock_return_request_id:
+    return_request = picking.stock_return_request_id
+    # Process return request logic
 ```
 
-## Relationships
+### Creating Backorders with Return Requests
 
-**To Stock Request**: Indirectly connected through moves
-- Picking → Move (`move_ids`)
-- Move → Allocation (`allocation_ids`)
-- Allocation → Stock Request (`stock_request_id`)
+```python
+# When processing a return picking partially
+picking = self.env['stock.picking'].browse(picking_id)
+if picking.stock_return_request_id:
+    # Create backorder - it will automatically inherit the return request link
+    backorder = picking._create_backorder()
+    # The backorder.stock_return_request_id will be set automatically
+```
 
-**To Stock Move**: Direct one-to-many relationship through standard `move_ids` field
+---
 
-## Use Cases
+## Integration Points
 
-1. **Request Tracking**: View all stock requests being fulfilled by a specific picking operation
-2. **Order Fulfillment**: Verify which customer or internal requests are satisfied by a delivery
-3. **Warehouse Operations**: Allow warehouse staff to see request details without leaving the picking interface
-4. **Reporting**: Aggregate request data at the picking level for analysis and reporting
+### Smart Buttons
 
-## Example Workflow
+The `stock_request_count` field is used to display a smart button in the picking form view. When clicked, it calls `action_view_stock_request()` to show the related stock requests.
 
-1. Stock requests are created for products
-2. Moves are generated and allocated to fulfill the requests
-3. Moves are grouped into a picking
-4. The picking shows all related requests via `stock_request_ids`
-5. Users click the smart button to view request details
-6. When picking is validated, moves are marked done and requests are updated
+### Backorder Handling
+
+When a picking linked to a return request is partially processed:
+1. A backorder is created using `_create_backorder()`
+2. The extension automatically links the backorder to the same return request
+3. This maintains traceability throughout the return process
+
+---
+
+## Source Code References
+
+- Stock Request extensions: `stock_request/models/stock_picking.py`
+- Stock Return Request extensions: `stock_return_request/models/stock_picking.py`

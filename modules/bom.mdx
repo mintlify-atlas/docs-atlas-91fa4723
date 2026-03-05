@@ -3,279 +3,509 @@ title: Stock Request BOM
 description: Auto-fill stock request lines based on Bill of Materials
 ---
 
-The Stock Request BOM module enhances stock request functionality by integrating with Bill of Materials (BOM), allowing users to automatically populate stock request lines based on a selected BOM and quantity.
+The `stock_request_bom` module enhances stock request orders by enabling automatic population of request lines based on a Bill of Materials (BoM), streamlining the process of requesting all components for a manufactured product.
 
 ## Overview
 
-This module streamlines the process of requesting all components needed for a product. Instead of manually adding each component, users can select a BOM and quantity, and the system automatically creates stock request lines for all required materials.
+**Module Name**: `stock_request_bom`  
+**Version**: 18.0.1.0.1  
+**License**: LGPL-3  
+**Dependencies**: `stock_request`, `mrp`  
+**Author**: ForgeFlow, OCA  
+**Category**: Warehouse Management  
+**Auto Install**: Yes (when both dependencies are met)
+
+<Info>
+This module allows you to select a product's Bill of Materials and automatically create stock request lines for all components, simplifying the process of requesting materials for production.
+</Info>
 
 ## Key Features
 
-- **BOM Integration**: Select a product BOM directly in stock request orders
-- **Auto-Fill Components**: Automatically create request lines from BOM structure
-- **Quantity Calculation**: Adjust all component quantities based on BOM quantity
-- **Update Capability**: Modify BOM quantity and update all lines accordingly
-- **Clear Function**: Remove BOM selection and related lines
-- **Multi-Level Support**: Handle complex BOM structures
+### BoM-Based Line Generation
 
-## Dependencies
+- Select a product BoM in stock request order
+- Specify quantity multiplier
+- Automatically generate request lines for all BoM components
+- Quantities calculated based on BoM and multiplier
 
-```python
-"depends": ["stock_request", "mrp"]
-```
+### Dynamic Updates
 
-<Info>
-This module is marked as `auto_install: True`, automatically installing when both `stock_request` and `mrp` modules are present.
-</Info>
+- Change quantity BoM to recalculate component quantities
+- Update BoM selection to load different components
+- Clear BoM selection to remove auto-generated lines
+- Manual adjustments to generated lines supported
+
+### Flexible Workflow
+
+- Mix BoM-generated and manually-added request lines
+- Multiple BoMs can be used in same order
+- Update BoM without losing manual entries
+- Supports multi-level BoMs with subassemblies
 
 ## Installation
 
-### Automatic Installation
+<Note>
+This module installs automatically when both `stock_request` and `mrp` modules are installed.
+</Note>
 
-The module installs automatically when:
+<Steps>
+  <Step title="Install Prerequisites">
+    Ensure these modules are installed:
+    - `stock_request` (Stock Request)
+    - `mrp` (Manufacturing)
+  </Step>
+  
+  <Step title="Automatic Installation">
+    The module installs automatically due to `auto_install: True` setting.
+  </Step>
+  
+  <Step title="Verify Installation">
+    Check that BoM fields appear in stock request order form.
+  </Step>
+</Steps>
 
-1. `stock_request` module is installed
-2. `mrp` (Manufacturing) module is installed
-3. Module list is updated
+## Configuration
 
-### Manual Installation
+### Bill of Materials Setup
 
-1. Go to **Apps**
-2. Remove the "Apps" filter
-3. Search for "Stock Request BOM"
-4. Click **Install**
+Ensure products have properly configured BoMs:
+
+<Steps>
+  <Step title="Navigate to BoMs">
+    Go to **Manufacturing > Products > Bills of Materials**.
+  </Step>
+  
+  <Step title="Create or Edit BoM">
+    For each finished product:
+    - Set **Product** (finished product)
+    - Add **Components** with quantities
+    - Specify **BoM Type**: Manufacture this product
+    - Save the BoM
+  </Step>
+  
+  <Step title="Verify BoM Active">
+    Ensure BoM is active and not archived.
+  </Step>
+</Steps>
+
+### Product Configuration
+
+Products used in BoM-based requests should:
+
+- Have **Can be Manufactured** enabled
+- Have at least one active BoM
+- Have components properly configured
 
 ## Usage
 
-### Creating a Stock Request Order with BOM
+### Auto-Filling from BoM
 
-1. Navigate to **Stock Requests > Stock Request Orders**
-2. Click **Create**
-3. Fill in the header information:
-   - **Product BOM**: Select a product that has a BOM defined
-   - **Quantity BOM**: Enter the quantity of the finished product
-4. The system automatically populates stock request lines with:
-   - All BOM components
-   - Calculated quantities based on the BOM quantity
-   - Proper unit of measure for each component
+<Steps>
+  <Step title="Create Stock Request Order">
+    Go to **Stock Requests > Stock Request Orders** and click **Create**.
+  </Step>
+  
+  <Step title="Select Product BoM">
+    In the order form:
+    - **Product BoM**: Select the finished product whose components you need
+    - The system loads the BoM for that product
+  </Step>
+  
+  <Step title="Enter Quantity BoM">
+    - **Quantity BoM**: Enter how many units of the finished product you're planning to make
+    - Example: If BoM is for 1 unit and you enter 10, components will be calculated for 10 units
+  </Step>
+  
+  <Step title="Auto-Generate Lines">
+    Click outside the field or press Tab:
+    - Request lines automatically created for each BoM component
+    - Quantities calculated: Component Qty × Quantity BoM
+    - UoM matched to component product UoM
+  </Step>
+  
+  <Step title="Review and Adjust">
+    - Review generated request lines
+    - Make manual adjustments if needed
+    - Add additional lines not in BoM
+  </Step>
+  
+  <Step title="Confirm Order">
+    Click **Confirm** to process all request lines.
+  </Step>
+</Steps>
 
-<Info>
-The auto-fill happens immediately when you select the BOM and quantity.
-</Info>
+### Updating Quantity
 
-### Example Workflow
+To change the quantity multiplier:
 
-**Scenario**: Request components for 10 units of "Laptop Computer"
-
-1. **Create Stock Request Order**
-   - Product BOM: Laptop Computer
-   - Quantity BOM: 10
-
-2. **System Auto-Fills Lines**:
-   ```
-   - Laptop Screen    × 10
-   - Keyboard         × 10
-   - RAM 8GB          × 20 (2 per laptop)
-   - SSD 256GB        × 10
-   - Battery Pack     × 10
-   - Laptop Case      × 10
-   ```
-
-3. **Review and Adjust**
-   - Review auto-filled lines
-   - Manually adjust specific quantities if needed
-   - Set expected dates
-   - Assign to warehouse location
-
-4. **Confirm Order**
-   - Click **Confirm**
-   - All component requests are processed
-
-### Updating BOM Quantity
-
-After initial creation, you can adjust the quantity:
-
-1. Open the stock request order
-2. Change the **Quantity BOM** field
-3. All component line quantities update proportionally
-
-<Note>
-Only works for lines that were auto-generated from the BOM. Manual lines remain unchanged.
-</Note>
-
-### Clearing BOM Selection
-
-To start over or switch to manual entry:
-
-1. Open the stock request order
-2. Use the **Clear BOM** button or action
-3. Product BOM and Quantity BOM fields are cleared
-4. BOM-generated lines can be removed
-
-## Technical Details
-
-### Module Information
-
-- **Technical Name**: `stock_request_bom`
-- **Version**: 18.0.1.0.1
-- **License**: LGPL-3
-- **Category**: Warehouse Management
-- **Author**: ForgeFlow, OCA
-- **Auto Install**: Yes
-
-### Fields Added
-
-On Stock Request Order:
-
-- `product_bom_id` - Many2one to mrp.bom
-- `quantity_bom` - Float for BOM quantity
-- Related computed fields for BOM management
-
-### Methods Added
-
-- `onchange_product_bom_id()` - Triggers line creation
-- `onchange_quantity_bom()` - Updates quantities
-- `explode_bom_lines()` - Processes BOM structure
-- `clear_bom()` - Clears BOM selection
-
-## BOM Structure Support
-
-### Single-Level BOMs
-
-```
-Product A
-  ├─ Component B × 2
-  ├─ Component C × 1
-  └─ Component D × 4
-```
-
-All components are added as direct stock request lines.
-
-### Multi-Level BOMs
-
-```
-Product A
-  ├─ Subassembly X × 2
-  │   ├─ Component B × 3
-  │   └─ Component C × 1
-  └─ Component D × 4
-```
-
-The module handles BOM explosion:
-- Subassemblies are expanded
-- Final component quantities calculated
-- Phantom BOMs processed correctly
+<Steps>
+  <Step title="Change Quantity BoM">
+    Edit the **Quantity BoM** field with new value.
+  </Step>
+  
+  <Step title="Recalculation">
+    System recalculates all component quantities based on new multiplier.
+  </Step>
+  
+  <Step title="Verify Changes">
+    Review updated quantities in request lines.
+  </Step>
+</Steps>
 
 <Warning>
-Phantom BOM components are expanded automatically. Ensure your BOM structure is correct.
+Changing Quantity BoM will update all component line quantities. Manual adjustments to individual lines will be overwritten.
 </Warning>
+
+### Changing BoM Selection
+
+To load a different BoM:
+
+<Steps>
+  <Step title="Select Different Product">
+    Change the **Product BoM** field to another product.
+  </Step>
+  
+  <Step title="Lines Updated">
+    Request lines updated with new BoM's components.
+  </Step>
+  
+  <Step title="Adjust Quantity">
+    Set **Quantity BoM** for the new product.
+  </Step>
+</Steps>
+
+### Clearing BoM Selection
+
+To remove BoM-generated lines:
+
+<Steps>
+  <Step title="Clear Product BoM">
+    Remove the value from **Product BoM** field.
+  </Step>
+  
+  <Step title="Lines Removed">
+    BoM-generated request lines are removed.
+  </Step>
+  
+  <Step title="Manual Lines Remain">
+    Any manually added lines are preserved.
+  </Step>
+</Steps>
+
+## Data Models
+
+### Stock Request Order (Extended)
+
+Adds BoM-related fields:
+
+```python
+class StockRequestOrder(models.Model):
+    _inherit = 'stock.request.order'
+    
+    product_bom_id = fields.Many2one(
+        'mrp.bom',
+        string='Product BOM',
+        help='Select a BOM to auto-fill request lines'
+    )
+    
+    bom_product_id = fields.Many2one(
+        'product.product',
+        string='Product BoM',
+        help='Product for which to load BOM'
+    )
+    
+    qty_bom = fields.Float(
+        string='Quantity BOM',
+        default=1.0,
+        help='Quantity multiplier for BOM components'
+    )
+```
+
+### Onchange Methods
+
+```python
+@api.onchange('bom_product_id')
+def _onchange_bom_product_id(self):
+    # Load BOM for selected product
+    # Clear existing BOM-generated lines
+    # Generate new lines from new BOM
+    
+@api.onchange('qty_bom')
+def _onchange_qty_bom(self):
+    # Recalculate quantities for all BOM lines
+    # Multiply component quantities by qty_bom
+    
+@api.onchange('product_bom_id')
+def _onchange_product_bom_id(self):
+    # Generate request lines from selected BOM
+    # Create line for each BOM component
+```
+
+## Views
+
+### Stock Request Order Form
+
+Enhanced with BoM fields:
+
+```xml
+<group name="bom_group" string="Bill of Materials">
+    <field name="bom_product_id"/>
+    <field name="product_bom_id" 
+           domain="[('product_id', '=', bom_product_id)]"/>
+    <field name="qty_bom"/>
+</group>
+```
+
+BoM section appears above request lines for easy access.
+
+## Calculation Logic
+
+### Component Quantity Calculation
+
+For each component in the BoM:
+
+```python
+request_qty = bom_line.product_qty * qty_bom
+```
+
+**Example**:
+- BoM component: 5 units
+- Quantity BoM: 3
+- Request line quantity: 5 × 3 = 15 units
+
+### UoM Handling
+
+```python
+request_uom = bom_line.product_uom_id
+# or fallback to:
+request_uom = component.uom_id
+```
+
+Component UoM from BoM is used, or product default if not specified.
 
 ## Use Cases
 
-### Manufacturing Setup Requests
+### Production Material Request
 
-- Request all materials for production runs
-- Ensure all components available before starting
-- Scale requests based on production quantity
+**Scenario**: Production manager needs all materials for a production run.
+
+<Steps>
+  <Step title="Plan Production">
+    Decide to manufacture 50 units of Product X.
+  </Step>
+  
+  <Step title="Create Request Order">
+    Open new stock request order.
+  </Step>
+  
+  <Step title="Select Product and Quantity">
+    - Product BoM: Product X
+    - Quantity BoM: 50
+  </Step>
+  
+  <Step title="Review Components">
+    System lists all components × 50.
+  </Step>
+  
+  <Step title="Confirm">
+    Confirm to request all materials.
+  </Step>
+</Steps>
 
 ### Kitting Operations
 
-- Request components for assembly kits
-- Create material packages for work centers
-- Prepare materials for specific projects
+**Scenario**: Assemble kits for customer orders.
 
-### Material Staging
+**Setup**:
+- Create BoM for kit with all components
+- Use BoM module to request kit components
 
-- Stage all materials for upcoming production
-- Coordinate material availability
-- Reduce setup time for manufacturing
+**Benefit**: Ensure all kit components requested together.
+
+### Project Material Planning
+
+**Scenario**: Request materials for multiple units in a project.
+
+**Workflow**:
+1. Select product BoM for project deliverable
+2. Set quantity to project requirement
+3. System calculates total material needs
+4. Confirm to request all materials
+
+**Benefit**: Complete material list for project in one request.
 
 ## Best Practices
 
-### BOM Maintenance
+### BoM Maintenance
 
-- Keep BOMs accurate and up-to-date
-- Use appropriate BOM types (normal, phantom, kit)
-- Set correct quantities in BOM lines
-- Define proper units of measure
+<Tip>
+**Keep BoMs Updated**: Regularly review and update BoMs to ensure accuracy. Outdated BoMs lead to incorrect material requests.
+</Tip>
+
+<Tip>
+**BoM Versions**: Use BoM versioning for products with changing specifications.
+</Tip>
 
 ### Request Planning
 
-- Use BOM-based requests for complete material needs
-- Verify component availability before confirming
-- Consider lead times for all components
-- Coordinate with inventory and purchasing teams
+<Tip>
+**Buffer Quantities**: Consider adding buffer percentage to Quantity BoM to account for waste or defects.
+</Tip>
 
-### Quality Control
+<Tip>
+**Component Lead Times**: Review component lead times before confirming requests to ensure timely availability.
+</Tip>
 
-- Review auto-generated lines before confirming
-- Check for special components or substitutions
-- Verify location assignments
-- Ensure quantities align with actual needs
+### Mixed Requests
 
-## Integration Scenarios
+<Tip>
+**Combine Methods**: Use BoM generation for main components, then add manual lines for consumables or tooling.
+</Tip>
 
-### With Manufacturing Module
-
-```
-BOM Selection → Component Request → Procurement → Manufacturing
-```
-
-- Request components using BOM
-- Components procured via purchase or manufacturing
-- Original product manufactured when ready
-
-### With Purchase Module
-
-```
-BOM Selection → Component Request → Purchase Orders → Receipt
-```
-
-- BOM components requested
-- Purchase orders created for bought components
-- Materials received to fulfill requests
-
-### With Kanban Module
-
-```
-Kanban Card → BOM Expansion → Component Requests
-```
-
-- Kanban triggers stock request order
-- BOM expanded for finished product
-- All components requested automatically
-
-## Troubleshooting
-
-### Lines Not Auto-Filling
-
-<Warning>
-If lines don't appear:
-</Warning>
-
-- Verify the product has an active BOM
-- Check BOM has components defined
-- Ensure BOM is valid and not expired
-- Verify user has access to BOM data
-
-### Incorrect Quantities
-
-- Review BOM line quantities
-- Check unit of measure conversions
-- Verify BOM quantity field value
-- Look for phantom BOM multipliers
-
-### Cannot Update Quantities
-
-- Ensure order is not confirmed
-- Check if lines were manually created vs BOM-generated
-- Verify field editability settings
+<Tip>
+**Multiple BoMs**: In same order, generate lines from one BoM, then clear and add another BoM's components.
+</Tip>
 
 ## Integration with Other Modules
 
+### Stock Request MRP
+
+When used with `stock_request_mrp`:
+
+<Info>
+BoM-generated component requests can trigger procurement, while the finished product itself can be manufactured via a separate stock request.
+</Info>
+
+**Combined Workflow**:
+1. Create order for finished product components (using BoM module)
+2. Confirm to procure/transfer components
+3. Create separate request for finished product
+4. Confirm to trigger manufacturing order
+5. Components already available from first request
+
+### Stock Request Purchase
+
+Components in BoM-generated requests can trigger purchase orders:
+
+1. Select product BoM
+2. Set quantity BoM
+3. Confirm request order
+4. Purchasable components trigger POs
+5. Track all POs from request order
+
+## Advanced Features
+
+### Multi-Level BoMs
+
+For nested BoMs (BoM with subassemblies):
+
+<Note>
+The module uses the primary BoM level only. For subassemblies, you may need to:
+- Request finished product (triggers MO which handles subassemblies)
+- Or manually create separate requests for subassemblies
+</Note>
+
+### BoM Variants
+
+When product has variants:
+
+- Select specific variant in Product BoM field
+- System loads variant-specific BoM
+- Component quantities based on variant BoM
+
+### Phantom BoMs
+
+For phantom/kit BoMs:
+
+- Module treats same as regular BoMs
+- All components listed in request lines
+- Phantom nature handled during procurement
+
+## Troubleshooting
+
+### No Lines Generated
+
+**Problem**: Selecting Product BoM doesn't create request lines.
+
+**Solutions**:
+1. Verify product has an active BoM
+2. Check BoM is not archived
+3. Ensure BoM has components defined
+4. Verify Quantity BoM is greater than zero
+5. Check BoM company matches request order company
+
+### Incorrect Quantities
+
+**Problem**: Component quantities don't match expectation.
+
+**Solutions**:
+1. Review BoM component quantities
+2. Check Quantity BoM value
+3. Verify UoM conversions
+4. Ensure BoM quantities are per unit of finished product
+
+### Lines Overwritten
+
+**Problem**: Manual changes lost when updating Quantity BoM.
+
+**Solutions**:
+1. Make manual adjustments after setting final Quantity BoM
+2. Mark BoM-generated lines distinctly (e.g., in notes)
+3. Use separate request orders for BoM and manual requests
+
+### Wrong BoM Loaded
+
+**Problem**: System loads unexpected BoM.
+
+**Solutions**:
+1. Check if multiple BoMs exist for product
+2. Verify BoM is marked as primary/default
+3. Review BoM applicability rules
+4. Check BoM dates and validity
+
+## API Examples
+
+### Programmatic BoM Line Generation
+
+```python
+# Create order and auto-fill from BoM
+order = env['stock.request.order'].create({
+    'name': 'Production Materials',
+    'warehouse_id': warehouse.id,
+})
+
+# Set BoM and quantity
+order.write({
+    'bom_product_id': product.id,
+    'qty_bom': 10.0,
+})
+
+# Trigger onchange manually if needed
+order._onchange_bom_product_id()
+order._onchange_qty_bom()
+
+# Request lines now populated
+for line in order.stock_request_ids:
+    print(f"Component: {line.product_id.name}, Qty: {line.product_qty}")
+```
+
+### Reading BoM Data
+
+```python
+# Get BoM for a product
+bom = env['mrp.bom']._bom_find(product=product)
+
+# List all components
+for line in bom.bom_line_ids:
+    print(f"Component: {line.product_id.name}")
+    print(f"Quantity: {line.product_qty} {line.product_uom_id.name}")
+```
+
+## Related Modules
+
 <CardGroup cols={2}>
   <Card title="Stock Request Core" icon="box" href="/modules/core">
-    Base functionality for stock requests
+    Base stock request functionality
   </Card>
   
   <Card title="Stock Request MRP" icon="industry" href="/modules/mrp">
@@ -286,18 +516,41 @@ If lines don't appear:
     Purchase order generation for components
   </Card>
   
-  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
-    Combine BOM expansion with kanban cards
+  <Card title="MRP Module" icon="book" href="https://www.odoo.com/documentation/18.0/applications/inventory_and_mrp/manufacturing.html">
+    Odoo manufacturing and BoM documentation
   </Card>
 </CardGroup>
 
-## Support
+## Calculation Examples
 
-For issues and feature requests:
+### Example 1: Simple BoM
 
-- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
-- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_bom)
+**BoM for Product "Chair"**:
+- 4 × Leg
+- 1 × Seat
+- 4 × Screw
 
-<Info>
-Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
-</Info>
+**Request**:
+- Product BoM: Chair
+- Quantity BoM: 5
+
+**Generated Lines**:
+- Leg: 4 × 5 = 20 units
+- Seat: 1 × 5 = 5 units
+- Screw: 4 × 5 = 20 units
+
+### Example 2: Fractional Quantities
+
+**BoM for Product "Solution"**:
+- 0.5 L × Chemical A
+- 0.3 L × Chemical B
+- 2.5 L × Water
+
+**Request**:
+- Product BoM: Solution
+- Quantity BoM: 10 L
+
+**Generated Lines**:
+- Chemical A: 0.5 × 10 = 5.0 L
+- Chemical B: 0.3 × 10 = 3.0 L  
+- Water: 2.5 × 10 = 25.0 L

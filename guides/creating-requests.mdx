@@ -1,293 +1,405 @@
 ---
-title: Creating Stock Requests
-description: Step-by-step guide to creating and managing stock requests
-icon: plus-circle
+title: 'Creating Stock Requests'
+description: 'Step-by-step guide to creating and managing stock requests in Odoo'
+icon: 'clipboard-list'
 ---
 
-Stock Requests allow users to request products to be transferred to their chosen location. This guide covers creating requests through the UI and programmatically.
+Stock requests allow users to request products to be moved to specific locations. This guide covers creating individual stock requests and bulk stock request orders.
 
-## Creating a Request via the UI
+## Creating Individual Stock Requests
 
 <Steps>
   <Step title="Navigate to Stock Requests">
-    Go to **Stock Requests → Stock Requests** in the main menu
+    Go to **Inventory > Operations > Stock Requests** in the main menu.
   </Step>
   
   <Step title="Create New Request">
-    Click the **Create** button to start a new stock request
+    Click the **Create** button to open a new stock request form.
   </Step>
   
-  <Step title="Fill Required Fields">
-    Complete the following required information:
+  <Step title="Configure Request Details">
+    Fill in the required fields:
     
-    - **Product**: Select the product you need (must be type 'Storable Product' or 'Consumable')
-    - **Quantity**: Enter the quantity needed
-    - **Unit of Measure**: Defaults to product UoM, can be changed to compatible units
-    - **Location**: Choose the destination location for the products
-    - **Warehouse**: Select the warehouse (auto-updates when location is selected)
-    - **Expected Date**: Date when you expect to receive the goods
+    - **Product**: Select the product you need
+    - **Quantity**: Enter the requested quantity
+    - **Unit of Measure**: Select the UOM (defaults to product's UOM)
+    - **Expected Date**: When you expect to receive the goods
+    - **Warehouse**: The warehouse for the request (if multi-location is enabled)
+    - **Location**: The destination location for the products
+    - **Route**: The procurement route to use (optional)
   </Step>
   
-  <Step title="Configure Optional Settings">
-    Set additional options as needed:
+  <Step title="Set Shipping Policy">
+    Choose your shipping policy:
     
-    - **Route**: Choose a specific route if you need to control how the request is fulfilled
-    - **Procurement Group**: Link to a procurement group to organize related moves
-    - **Shipping Policy**: 
-      - *Receive each product when available* (default)
-      - *Receive all products at once*
+    - **Receive each product when available**: Products are delivered as they become available
+    - **Receive all products at once**: Wait until all products are available before delivery
+  </Step>
+  
+  <Step title="Save as Draft">
+    Click **Save** to create the request in draft status.
   </Step>
   
   <Step title="Confirm the Request">
-    Click the **Confirm** button. This will:
-    
-    - Change the state from "Draft" to "In progress"
-    - Evaluate procurement rules for the selected location
-    - Generate stock moves/transfers as needed
-    - Create purchase orders or manufacturing orders if required by rules
+    Click the **Confirm** button to transition the request to "In progress" state and trigger procurement.
   </Step>
 </Steps>
 
 <Note>
-The **Requested By** field defaults to the current user. This cannot be changed manually but is inherited from Stock Request Orders when creating requests through an order.
+The stock request is automatically assigned a unique reference number (e.g., SR00001) when created.
 </Note>
 
-## Required Fields Explained
+## Stock Request Form Fields
 
-### Product Selection
+### Basic Information
 
-Only products with type 'Storable Product' (`product`) or 'Consumable' (`consu`) can be requested:
+| Field | Description | Required | Editable |
+|-------|-------------|----------|----------|
+| Name | Auto-generated reference number | Yes | No (read-only) |
+| Product | The product being requested | Yes | Draft only |
+| Quantity | Requested quantity | Yes | Draft only |
+| Product UOM | Unit of measure | Yes | Draft only |
+| Expected Date | Expected delivery date | Yes | Draft only |
+| Shipping Policy | Delivery policy | Yes | Draft only |
 
-```python
-product_id = fields.Many2one(
-    "product.product",
-    "Product",
-    domain=["(type", "in", ["product", "consu"])],
-    required=True,
-)
-```
+### Location & Routing
 
-<Warning>
-Service products cannot be requested through Stock Requests.
-</Warning>
+| Field | Description | Required | Visibility |
+|-------|-------------|----------|------------|
+| Warehouse | Source warehouse | No | Multi-locations group |
+| Location | Destination location | No | Multi-locations group |
+| Route | Procurement route | No | Multi-locations group |
+| Procurement Group | Grouping for moves | No | Advanced locations group |
 
-### Quantity Validation
+### Quantities (After Confirmation)
 
-The system enforces quantity constraints:
+- **Quantity In Progress**: Products currently being processed
+- **Quantity Done**: Products already received
+- **Quantity Cancelled**: Cancelled quantity
 
-- In **Draft** state: Quantity must be strictly positive (> 0)
-- In other states: Quantity cannot be negative (>= 0)
+## Stock Request States
 
-```python
-if rec.state == "draft" and rec.product_qty <= 0:
-    raise ValidationError(
-        _("Stock Request product quantity has to be strictly positive.")
-    )
-```
-
-### Location Selection
-
-By default, only internal and transit locations are allowed. If your company enables virtual locations:
-
-```python
-location_id = fields.Many2one(
-    comodel_name="stock.location",
-    domain="not allow_virtual_location and "
-    "[('usage', 'in', ['internal', 'transit'])] or []",
-    required=True,
-)
-```
-
-## Understanding Request States
-
-Stock Requests progress through the following states:
-
-<Card title="Draft" icon="file">
-  Initial state when created. Request can be freely edited and deleted.
-</Card>
-
-<Card title="In Progress" icon="spinner">
-  Request has been confirmed and procurement is running. Related transfers are being processed.
-</Card>
-
-<Card title="Done" icon="check-circle">
-  All requested quantities have been fulfilled.
-</Card>
-
-<Card title="Cancelled" icon="times-circle">
-  Request was cancelled. Related pending stock moves are also cancelled.
-</Card>
-
-## Viewing Generated Transfers
-
-After confirmation, you can view related transfers:
+Stock requests progress through several states:
 
 <Steps>
-  <Step title="Access Transfers Button">
-    On the Stock Request form, click the **Transfers** smart button at the top
+  <Step title="Draft">
+    Initial state. Request is editable and has not triggered any operations.
+    
+    **Available Actions**: Edit, Confirm, Delete
   </Step>
   
-  <Step title="View Transfer Details">
-    This opens a list of all stock pickings generated from this request
+  <Step title="In Progress">
+    Request is confirmed and procurement has been triggered. Stock moves are being processed.
     
-    - Internal transfers
-    - Incoming shipments (if generated from purchase)
-    - Manufacturing moves (if generated from MRP)
+    **Available Actions**: Cancel, Done
+  </Step>
+  
+  <Step title="Done">
+    Request is fully completed. All requested quantities have been received.
+    
+    **Available Actions**: None (final state)
+  </Step>
+  
+  <Step title="Cancelled">
+    Request was cancelled. Associated stock moves are cancelled.
+    
+    **Available Actions**: Set to Draft
   </Step>
 </Steps>
 
+<Info>
+If the **Stock Request Submit** module is installed, an additional **Submitted** state is available between Draft and In Progress.
+</Info>
+
+## Creating Stock Request Orders
+
+Stock Request Orders allow you to group multiple product requests into a single order with shared settings.
+
+<Steps>
+  <Step title="Navigate to Orders">
+    Go to **Inventory > Operations > Stock Request Orders**.
+    
+    <Note>
+    This menu is only visible if the **Enable Orders** setting is activated in **Inventory > Configuration > Settings**.
+    </Note>
+  </Step>
+  
+  <Step title="Create New Order">
+    Click **Create** to open a new stock request order form.
+  </Step>
+  
+  <Step title="Configure Order Header">
+    Set the order-level settings:
+    
+    - **Expected Date**: Applies to all line items
+    - **Shipping Policy**: Applies to all line items
+    - **Warehouse**: Applies to all line items
+    - **Location**: Applies to all line items
+    - **Route**: Optionally set a default route for all items
+    - **Procurement Group**: Optionally group all order moves
+  </Step>
+  
+  <Step title="Add Request Items">
+    In the **Items** tab, click **Add a line** and enter:
+    
+    - **Product**: Product to request
+    - **Quantity**: Requested quantity
+    - **Unit of Measure**: UOM for the product
+    - **Route**: Override the order route if needed
+    
+    Add as many lines as needed.
+  </Step>
+  
+  <Step title="Save and Confirm">
+    Click **Save**, then click **Confirm** to process all request items.
+  </Step>
+</Steps>
+
+<Tip>
+Changing order-level fields (warehouse, location, expected date, etc.) automatically updates all line items to maintain consistency.
+</Tip>
+
+## Creating Requests from Products
+
+You can create stock request orders directly from the product catalog:
+
+<Steps>
+  <Step title="Navigate to Products">
+    Go to **Inventory > Products > Products**.
+  </Step>
+  
+  <Step title="Select Products">
+    Select one or more products using the checkbox in the list view.
+  </Step>
+  
+  <Step title="Open Actions Menu">
+    Click the **Actions** menu at the top of the list.
+  </Step>
+  
+  <Step title="Create Stock Request Order">
+    Select **Create Stock Request Order** from the actions menu.
+  </Step>
+  
+  <Step title="Review Generated Order">
+    A new stock request order is created with one line per selected product, each with a default quantity of 1.0.
+    
+    Edit quantities and settings as needed, then confirm.
+  </Step>
+</Steps>
+
+## Advanced Request Configuration
+
+### Procurement Groups
+
+Procurement groups help organize related stock moves:
+
 ```python
-def action_view_transfer(self):
-    action = self.env["ir.actions.act_window"]._for_xml_id(
-        "stock.action_picking_tree_all"
-    )
-    pickings = self.mapped("picking_ids")
-    if len(pickings) > 1:
-        action["domain"] = [("id", "in", pickings.ids)]
-    elif pickings:
-        action["views"] = [(self.env.ref("stock.view_picking_form").id, "form")]
-        action["res_id"] = pickings.id
-    return action
-```
-
-## Creating Requests Programmatically
-
-You can create Stock Requests through code or API:
-
-### Basic Example
-
-```python
-StockRequest = self.env['stock.request']
-
-request = StockRequest.create({
-    'product_id': product.id,
-    'product_uom_id': product.uom_id.id,
-    'product_uom_qty': 10.0,
-    'location_id': location.id,
-    'warehouse_id': warehouse.id,
-    'expected_date': fields.Datetime.now(),
-})
-
-# Confirm the request
-request.action_confirm()
-```
-
-<Note>
-The `name` field is auto-generated from the sequence `stock.request` if not provided or set to "/".
-</Note>
-
-### With Custom Route
-
-```python
-request = StockRequest.create({
-    'product_id': product.id,
-    'product_uom_id': product.uom_id.id,
-    'product_uom_qty': 5.0,
-    'location_id': location.id,
-    'warehouse_id': warehouse.id,
-    'expected_date': fields.Datetime.now(),
-    'route_id': specific_route.id,  # Force specific procurement route
-})
-request.action_confirm()
-```
-
-### With Procurement Group
-
-```python
-# Create procurement group for related requests
-group = self.env['procurement.group'].create({
+# All moves from the same group will be grouped into one picking
+procurement_group_id = self.env['procurement.group'].create({
     'name': 'Project Alpha Materials'
 })
-
-request = StockRequest.create({
-    'product_id': product.id,
-    'product_uom_id': product.uom_id.id,
-    'product_uom_qty': 20.0,
-    'location_id': location.id,
-    'warehouse_id': warehouse.id,
-    'procurement_group_id': group.id,
-    'expected_date': fields.Datetime.now(),
-})
-request.action_confirm()
 ```
 
-## Quantity Tracking
+<Info>
+When you set a procurement group on a stock request, all generated stock moves and pickings will reference this group, making it easier to track related operations.
+</Info>
 
-The system automatically tracks quantity progress:
+### Routes and Rules
 
-```python
-qty_in_progress = fields.Float(
-    help="Quantity in progress.",
-    readonly=True,
-    compute="_compute_qty",
-)
+Routes determine how products are procured:
 
-qty_done = fields.Float(
-    help="Quantity completed",
-    readonly=True,
-    compute="_compute_qty",
-)
+<CardGroup cols={2}>
+  <Card title="Transfer Routes" icon="truck">
+    Move products from one location to another within the warehouse
+  </Card>
+  <Card title="Purchase Routes" icon="cart-shopping">
+    Trigger purchase orders when stock is not available
+  </Card>
+  <Card title="Manufacturing Routes" icon="industry">
+    Create manufacturing orders to produce the product
+  </Card>
+  <Card title="Custom Routes" icon="route">
+    Define custom multi-step procurement workflows
+  </Card>
+</CardGroup>
 
-qty_cancelled = fields.Float(
-    help="Quantity cancelled",
-    readonly=True,
-    compute="_compute_qty",
-)
-```
+<Warning>
+The route must have a rule with a destination location that matches or is a parent of the stock request's location.
+</Warning>
 
-These computed fields show:
-- **In Progress**: Quantity currently being processed in moves
-- **Done**: Quantity successfully delivered
-- **Cancelled**: Quantity that was cancelled
+### Using Available Stock First
 
-## Cancelling Requests
-
-To cancel a Stock Request:
+Enable the **Check available stock first** setting to automatically consume available stock before triggering procurement:
 
 <Steps>
-  <Step title="Open the Request">
-    Navigate to the Stock Request you want to cancel
+  <Step title="Open Settings">
+    Navigate to **Inventory > Configuration > Settings**.
   </Step>
   
-  <Step title="Click Cancel Button">
-    Click the **Cancel** button in the top action bar
+  <Step title="Enable the Feature">
+    Scroll to the **Stock Request** section and enable **Check available stock first**.
   </Step>
   
-  <Step title="Confirm Cancellation">
-    The system will:
-    - Set the request state to "Cancelled"
-    - Cancel all related pending stock moves
-    - Keep historical data for reporting
+  <Step title="Save Settings">
+    Click **Save**.
   </Step>
 </Steps>
 
+<Note>
+When this option is enabled, the system checks if the requested quantity is available in the destination location. If available, it creates and completes a stock move immediately. If not available, it falls back to the configured route.
+</Note>
+
+## Request Validation Rules
+
+The system enforces several validation rules:
+
+### Quantity Validations
+
 ```python
-def action_cancel(self):
-    self.sudo().mapped("move_ids")._action_cancel()
-    self.write({"state": "cancel"})
-    return True
+# Draft requests must have positive quantities
+if state == 'draft' and product_qty <= 0:
+    raise ValidationError(
+        "Stock Request product quantity has to be strictly positive."
+    )
+
+# Confirmed requests cannot have negative quantities  
+if state != 'draft' and product_qty < 0:
+    raise ValidationError(
+        "Stock Request product quantity cannot be negative."
+    )
 ```
 
+### Order Consistency Validations
+
+When a stock request belongs to an order, these fields must match the order:
+
+- Requested By
+- Warehouse
+- Location  
+- Expected Date
+- Shipping Policy
+- Procurement Group
+- Company
+
 <Warning>
-Cancelling a Stock Request does NOT cancel generated Purchase Orders or Manufacturing Orders. Those must be cancelled separately if needed.
+Attempting to modify these fields on a request that belongs to an order will raise a validation error. Modify the order instead, and changes will cascade to all line items.
 </Warning>
+
+## Tracking Request Progress
+
+After confirming a request, you can monitor its progress:
+
+### Smart Buttons
+
+The stock request form includes smart buttons showing:
+
+- **Transfers**: Number of associated stock pickings (click to view)
+- **Purchase Orders**: Related purchase orders (if purchase integration is enabled)
+- **Manufacturing Orders**: Related production orders (if MRP integration is enabled)
+
+### Quantity Fields
+
+- **Qty In Progress**: Sum of open allocations (moves not yet done)
+- **Qty Done**: Sum of completed allocations
+- **Qty Cancelled**: Quantity that was cancelled
+
+<Info>
+The request automatically transitions to **Done** when the quantity done equals or exceeds the requested quantity.
+</Info>
+
+## Practical Examples
+
+### Example 1: Simple Internal Transfer Request
+
+```python
+# Request 50 units of product to be transferred to Shop Floor
+stock_request = env['stock.request'].create({
+    'product_id': product.id,
+    'product_uom_qty': 50.0,
+    'product_uom_id': product.uom_id.id,
+    'warehouse_id': warehouse.id,
+    'location_id': shop_floor_location.id,
+    'expected_date': '2026-03-10 08:00:00',
+    'route_id': transfer_route.id,
+})
+stock_request.action_confirm()
+```
+
+### Example 2: Multi-Product Order
+
+```python
+# Create an order with multiple products
+order = env['stock.request.order'].create({
+    'warehouse_id': warehouse.id,
+    'location_id': production_location.id,
+    'expected_date': '2026-03-15 09:00:00',
+    'stock_request_ids': [
+        (0, 0, {
+            'product_id': screws.id,
+            'product_uom_qty': 1000.0,
+            'product_uom_id': screws.uom_id.id,
+        }),
+        (0, 0, {
+            'product_id': brackets.id,
+            'product_uom_qty': 200.0,
+            'product_uom_id': brackets.uom_id.id,
+        }),
+    ],
+})
+order.action_confirm()
+```
+
+### Example 3: Request with Purchase Integration
+
+```python
+# Request a product that will trigger a purchase order
+stock_request = env['stock.request'].create({
+    'product_id': purchased_product.id,
+    'product_uom_qty': 100.0,
+    'product_uom_id': purchased_product.uom_id.id,
+    'location_id': warehouse.lot_stock_id.id,
+    'route_id': buy_route.id,  # Route configured to trigger purchases
+})
+stock_request.action_confirm()
+# System creates a purchase order automatically
+```
+
+## Common Issues and Solutions
+
+<Accordion title="Request stays in Draft after clicking Confirm">
+  **Cause**: The product type is set to "Service" or the product is not storable.
+  
+  **Solution**: Only consumable (`consu`) and storable (`product`) products can be requested. Change the product type in the product form.
+</Accordion>
+
+<Accordion title="No procurement is triggered when confirming">
+  **Cause**: No route is configured, or the route rules don't match the request location.
+  
+  **Solution**: Select a route with rules that have a destination matching your request location. Check route configuration in **Inventory > Configuration > Routes**.
+</Accordion>
+
+<Accordion title="Cannot delete a stock request">
+  **Cause**: Only draft requests can be deleted.
+  
+  **Solution**: Cancel the request first using the **Cancel** button, then **Set to Draft**, and finally delete it.
+</Accordion>
+
+<Accordion title="Quantity fields don't update after receiving">
+  **Cause**: Stock allocations may not be properly linked to moves.
+  
+  **Solution**: Check the **Stock Moves** smart button to verify allocations exist. Ensure pickings are validated in the Inventory module.
+</Accordion>
 
 ## Best Practices
 
 <Tip>
-**Use Procurement Groups** to organize related requests. This helps track all materials for a project or batch together.
+**Use Stock Request Orders for recurring needs**: If you regularly request the same set of products, create template orders or use the product multi-select feature.
 </Tip>
 
-<Tip>
-**Set Realistic Expected Dates** to help the procurement system prioritize and schedule transfers appropriately.
-</Tip>
-
-<Tip>
-**Choose the Right Route** if you have multiple ways to fulfill requests. Otherwise, let the system select automatically based on configured rules.
-</Tip>
-
-## Next Steps
-
-- Learn about [managing Stock Request Orders](/guides/managing-orders)
-- Understand [procurement rules](/guides/procurement-rules)
-- Explore [integrations](/guides/integrations) with Purchase and MRP
+- Set realistic expected dates to help warehouse staff prioritize
+- Use procurement groups to organize related requests for projects
+- Choose appropriate routes to ensure correct procurement behavior
+- Use the "Receive all at once" policy for interdependent products
+- Review and confirm draft requests promptly to avoid backlog
+- Monitor in-progress requests regularly to identify bottlenecks
+- Use the follower feature to keep stakeholders informed

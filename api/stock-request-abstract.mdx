@@ -1,456 +1,577 @@
 ---
-title: stock.request.abstract
-description: API reference for the stock.request.abstract model in Stock Request framework
+title: 'stock.request.abstract'
+description: 'Abstract base model providing shared fields and logic for stock request models'
 ---
 
 ## Overview
 
-The `stock.request.abstract` model is an abstract base model providing common fields and functionality for stock requests.
+The `stock.request.abstract` model is an abstract model that provides common fields, computed fields, constraints, and business logic shared by both `stock.request` and `stock.request.order` models. It cannot be instantiated directly but serves as a foundation for concrete models.
 
-- **Model name**: `stock.request.abstract`
-- **Type**: Abstract Model
-- **Description**: Stock Request Template
-- **Inherits from**: `mail.thread`, `mail.activity.mixin`
+**Model Name:** `stock.request.abstract`
 
-## Purpose
+**Type:** Abstract Model
 
-This abstract model defines the core structure and shared functionality for stock request models. It provides:
+**Inherits:** `mail.thread`, `mail.activity.mixin`
 
-- Common fields for product, quantity, location, and warehouse management
-- Route computation logic
-- Company and unit of measure validation
-- Base onchange methods for field synchronization
-- Location parent hierarchy traversal
+---
 
 ## Fields
 
-### Identification
+### Core Fields
 
 <ParamField path="name" type="Char" required>
-  Unique identifier for the stock request.
+  Unique identifier for the record.
   
-  Default: `/`
+  **Properties:** `copy=False`, `required=True`, `readonly=True`, `default="/"`
   
-  Attributes: `copy=False`, `required=True`, `readonly=True`
-</ParamField>
-
-### Product Fields
-
-<ParamField path="product_id" type="Many2one" required>
-  Product to request.
-  
-  Related model: `product.product`
-  
-  Domain: `[('type', 'in', ['product', 'consu'])]` (stockable or consumable only)
-  
-  Attributes: `ondelete="cascade"`
-</ParamField>
-
-<ParamField path="product_uom_id" type="Many2one" required>
-  Unit of measure for the requested product.
-  
-  Related model: `uom.uom`
-  
-  Domain: `[('category_id', '=?', allowed_uom_categ_id)]`
-  
-  Default: From context `product_uom_id` if available
-</ParamField>
-
-<ParamField path="allowed_uom_categ_id" type="Many2one">
-  Allowed UoM category based on product.
-  
-  Related field: `product_id.uom_id.category_id`
-  
-  Used to restrict `product_uom_id` domain
-</ParamField>
-
-<ParamField path="product_uom_qty" type="Float" required>
-  Quantity in the specified unit of measure.
-  
-  Digits: `Product Unit of Measure`
-  
-  Help: "Quantity, specified in the unit of measure indicated in the request."
-</ParamField>
-
-<ParamField path="product_qty" type="Float">
-  Quantity in the default UoM of the product.
-  
-  Computed field: Converts `product_uom_qty` to product's default UoM
-  
-  Digits: `Product Unit of Measure`
-  
-  Attributes: `compute="_compute_product_qty"`, `store=True`, `copy=False`
-  
-  Help: "Quantity in the default UoM of the product"
+  Typically auto-generated from a sequence in concrete models.
 </ParamField>
 
 ### Location & Warehouse Fields
 
 <ParamField path="warehouse_id" type="Many2one" required>
-  Warehouse where the stock will be received.
+  Reference to `stock.warehouse`. The warehouse where stock is requested or stored.
   
-  Related model: `stock.warehouse`
-  
-  Attributes: `check_company=True`, `ondelete="cascade"`
+  **Properties:** `check_company=True`, `ondelete="cascade"`, `required=True`
 </ParamField>
 
 <ParamField path="location_id" type="Many2one" required>
-  Destination location for the stock.
+  Reference to `stock.location`. The specific location within the warehouse.
   
-  Related model: `stock.location`
+  **Domain:** `[('usage', 'in', ['internal', 'transit'])]` (when virtual locations not allowed)
   
-  Domain: Internal or transit locations only (unless virtual locations are allowed)
-  
-  Attributes: `ondelete="cascade"`
+  **Properties:** `ondelete="cascade"`, `required=True`
 </ParamField>
 
 <ParamField path="allow_virtual_location" type="Boolean">
-  Whether virtual locations are allowed.
+  Whether virtual locations are allowed for this record.
   
-  Related field: `company_id.stock_request_allow_virtual_loc`
+  **Related:** `company_id.stock_request_allow_virtual_loc`
   
-  Attributes: `readonly=True`
+  **Properties:** `readonly=True`
 </ParamField>
 
-### Organizational Fields
+### Product Fields
 
-<ParamField path="company_id" type="Many2one" required>
-  Company owning this stock request.
+<ParamField path="product_id" type="Many2one" required>
+  Reference to `product.product`. The product being requested.
   
-  Related model: `res.company`
+  **Domain:** `[('type', 'in', ['product', 'consu'])]`
   
-  Default: Current company
+  **Properties:** `ondelete="cascade"`, `required=True`
+  
+  Only storable and consumable products are allowed.
 </ParamField>
+
+<ParamField path="allowed_uom_categ_id" type="Many2one">
+  Reference to `uom.category`. The allowed UoM category for this product.
+  
+  **Related:** `product_id.uom_id.category_id`
+</ParamField>
+
+<ParamField path="product_uom_id" type="Many2one" required>
+  Reference to `uom.uom`. Product unit of measure.
+  
+  **Domain:** `[('category_id', '=?', allowed_uom_categ_id)]`
+  
+  **Properties:** `required=True`
+  
+  **Default:** From context `product_uom_id` if available
+</ParamField>
+
+<ParamField path="product_uom_qty" type="Float" required>
+  Quantity specified in the unit of measure indicated in the request.
+  
+  **Digits:** `Product Unit of Measure`
+  
+  **Properties:** `required=True`
+  
+  **Help:** Quantity, specified in the unit of measure indicated in the request.
+</ParamField>
+
+<ParamField path="product_qty" type="Float">
+  Real quantity in the default UoM of the product.
+  
+  **Properties:** `compute="_compute_product_qty"`, `store=True`, `copy=False`
+  
+  **Digits:** `Product Unit of Measure`
+  
+  **Help:** Quantity in the default UoM of the product
+</ParamField>
+
+### Procurement & Routing Fields
 
 <ParamField path="procurement_group_id" type="Many2one">
-  Procurement group for organizing stock moves.
+  Reference to `procurement.group`. Moves created through this stock request will be put in this procurement group.
   
-  Related model: `procurement.group`
-  
-  Help: "Moves created through this stock request will be put in this procurement group. If none is given, the moves generated by procurement rules will be grouped into one big picking."
+  **Help:** If none is given, the moves generated by procurement rules will be grouped into one big picking.
 </ParamField>
 
-### Route Fields
-
 <ParamField path="route_id" type="Many2one">
-  Selected route for procurement.
+  Reference to `stock.route`. The route to use for procurement.
   
-  Related model: `stock.route`
+  **Domain:** `[('id', 'in', route_ids)]`
   
-  Domain: `[('id', 'in', route_ids)]`
-  
-  Attributes: `ondelete="restrict"`
+  **Properties:** `ondelete="restrict"`
 </ParamField>
 
 <ParamField path="route_ids" type="Many2many">
-  Available routes based on product, warehouse, and location.
+  Reference to `stock.route` records. Available routes based on product, warehouse, and location.
   
-  Related model: `stock.route`
-  
-  Computed from: `product_id`, `warehouse_id`, `location_id`
-  
-  Attributes: `compute="_compute_route_ids"`, `readonly=True`
+  **Properties:** `compute="_compute_route_ids"`, `readonly=True`
 </ParamField>
+
+### Company Field
+
+<ParamField path="company_id" type="Many2one" required>
+  Reference to `res.company`. The company this record belongs to.
+  
+  **Default:** `self.env.company`
+  
+  **Properties:** `required=True`
+</ParamField>
+
+---
 
 ## Methods
 
-### _compute_product_qty()
+### Compute Methods
 
-Computes the product quantity in the default UoM of the product.
+<ResponseField name="_compute_product_qty" type="method">
+  Converts product quantity from request UoM to product's default UoM.
+  
+  **Depends on:**
+  - `product_id`
+  - `product_uom_id`
+  - `product_uom_qty`
+  - `product_id.product_tmpl_id.uom_id`
+  
+  **Behavior:**
+  - Uses UoM conversion with `HALF-UP` rounding
+  - Converts from `product_uom_id` to product template's base UoM
+  
+  ```python stock_request/models/stock_request_abstract.py:26
+  @api.depends(
+      "product_id",
+      "product_uom_id",
+      "product_uom_qty",
+      "product_id.product_tmpl_id.uom_id",
+  )
+  def _compute_product_qty(self):
+      for rec in self:
+          rec.product_qty = rec.product_uom_id._compute_quantity(
+              rec.product_uom_qty,
+              rec.product_id.product_tmpl_id.uom_id,
+              rounding_method="HALF-UP",
+          )
+  ```
+</ResponseField>
 
-**Dependencies:** `product_id`, `product_uom_id`, `product_uom_qty`, `product_id.product_tmpl_id.uom_id`
+<ResponseField name="_compute_route_ids" type="method">
+  Computes available routes based on product, warehouse, and location.
+  
+  **Depends on:** `product_id`, `warehouse_id`, `location_id`
+  
+  **Logic:**
+  1. Gets routes from product (direct and category routes)
+  2. Gets routes from warehouse
+  3. Filters routes where any rule's destination location is a parent of `location_id`
+  4. Returns union of matching routes
+  
+  ```python stock_request/models/stock_request_abstract.py:116
+  @api.depends("product_id", "warehouse_id", "location_id")
+  def _compute_route_ids(self):
+      route_obj = self.env["stock.route"]
+      routes = route_obj.search(
+          [("warehouse_ids", "in", self.mapped("warehouse_id").ids)]
+      )
+      routes_by_warehouse = {}
+      for route in routes:
+          for warehouse in route.warehouse_ids:
+              routes_by_warehouse.setdefault(warehouse.id, self.env["stock.route"])
+              routes_by_warehouse[warehouse.id] |= route
+      for record in self:
+          routes = route_obj
+          if record.product_id:
+              routes += record.product_id.mapped(
+                  "route_ids"
+              ) | record.product_id.mapped("categ_id").mapped("total_route_ids")
+          if record.warehouse_id and routes_by_warehouse.get(record.warehouse_id.id):
+              routes |= routes_by_warehouse[record.warehouse_id.id]
+          parents = record.get_parents().ids
+          record.route_ids = routes.filtered(
+              lambda r: any(p.location_dest_id.id in parents for p in r.rule_ids)
+          )
+  ```
+</ResponseField>
 
-**Returns:** None (updates `product_qty` field)
+### Utility Methods
 
-```python
-@api.depends(
-    "product_id",
-    "product_uom_id",
-    "product_uom_qty",
-    "product_id.product_tmpl_id.uom_id",
-)
-def _compute_product_qty(self):
-    for rec in self:
-        rec.product_qty = rec.product_uom_id._compute_quantity(
-            rec.product_uom_qty,
-            rec.product_id.product_tmpl_id.uom_id,
-            rounding_method="HALF-UP",
-        )
-```
+<ResponseField name="get_parents" type="method">
+  Returns all parent locations up to the root for the record's location.
+  
+  **Returns:** `stock.location` recordset containing the location and all its parents
+  
+  **Behavior:**
+  - Starts with `location_id`
+  - Recursively adds parent locations via `location_id` field
+  - Returns full hierarchy from location to root
+  
+  ```python stock_request/models/stock_request_abstract.py:141
+  def get_parents(self):
+      location = self.location_id
+      result = location
+      while location.location_id:
+          location = location.location_id
+          result |= location
+      return result
+  ```
+</ResponseField>
 
-**Example:**
+<ResponseField name="default_get" type="method">
+  Provides default values for warehouse and location based on company.
+  
+  **Decorator:** `@api.model`
+  
+  **Behavior:**
+  - Searches for a warehouse in the specified company
+  - Sets `warehouse_id` and `location_id` (to warehouse's `lot_stock_id`)
+  
+  ```python stock_request/models/stock_request_abstract.py:13
+  @api.model
+  def default_get(self, fields):
+      res = super().default_get(fields)
+      warehouse = None
+      if "warehouse_id" not in res and res.get("company_id"):
+          warehouse = self.env["stock.warehouse"].search(
+              [("company_id", "=", res["company_id"])], limit=1
+          )
+      if warehouse:
+          res["warehouse_id"] = warehouse.id
+          res["location_id"] = warehouse.lot_stock_id.id
+      return res
+  ```
+</ResponseField>
 
-```python
-request = env['stock.request'].browse(request_id)
-request.product_uom_qty = 5.0  # 5 boxes
-request.product_uom_id  # Box (1 box = 12 units)
-request.product_qty  # 60.0 units (computed)
-```
+### Onchange Methods
 
----
+<ResponseField name="onchange_warehouse_id" type="method">
+  Updates location and company when warehouse changes.
+  
+  **Decorator:** `@api.onchange("warehouse_id")`
+  
+  **Behavior:**
+  - Updates `location_id` to warehouse's `lot_stock_id` if warehouse changed
+  - Updates `company_id` if warehouse company differs
+  - Skips for `stock.request` records with an `order_id` (handled at order level)
+  
+  ```python stock_request/models/stock_request_abstract.py:210
+  @api.onchange("warehouse_id")
+  def onchange_warehouse_id(self):
+      if self._name == "stock.request" and self.order_id:
+          return
+      if self.warehouse_id:
+          loc_wh = self.location_id.warehouse_id
+          if self.warehouse_id != loc_wh:
+              self.location_id = self.warehouse_id.lot_stock_id.id
+          if self.warehouse_id.company_id != self.company_id:
+              self.company_id = self.warehouse_id.company_id
+  ```
+</ResponseField>
 
-### _compute_route_ids()
+<ResponseField name="onchange_location_id" type="method">
+  Updates warehouse when location changes.
+  
+  **Decorator:** `@api.onchange("location_id")`
+  
+  **Behavior:**
+  - If location has a warehouse, updates `warehouse_id` to match
+  - Calls `onchange_warehouse_id()` with context to prevent child updates
+  
+  ```python stock_request/models/stock_request_abstract.py:226
+  @api.onchange("location_id")
+  def onchange_location_id(self):
+      if self.location_id:
+          loc_wh = self.location_id.warehouse_id
+          if loc_wh and self.warehouse_id != loc_wh:
+              self.warehouse_id = loc_wh
+              self.with_context(no_change_childs=True).onchange_warehouse_id()
+  ```
+</ResponseField>
 
-Computes available routes based on product, warehouse, and location configuration.
+<ResponseField name="onchange_company_id" type="method">
+  Sets a default warehouse when the company is changed.
+  
+  **Decorator:** `@api.onchange("company_id")`
+  
+  **Behavior:**
+  - Searches for a warehouse in the new company
+  - Calls `onchange_warehouse_id()` to update related fields
+  
+  ```python stock_request/models/stock_request_abstract.py:234
+  @api.onchange("company_id")
+  def onchange_company_id(self):
+      if self.company_id and (
+          not self.warehouse_id or self.warehouse_id.company_id != self.company_id
+      ):
+          self.warehouse_id = self.env["stock.warehouse"].search(
+              [
+                  "|",
+                  ("company_id", "=", False),
+                  ("company_id", "=", self.company_id.id),
+              ],
+              limit=1,
+          )
+          self.onchange_warehouse_id()
+  ```
+</ResponseField>
 
-**Dependencies:** `product_id`, `warehouse_id`, `location_id`
-
-**Returns:** None (updates `route_ids` field)
-
-```python
-@api.depends("product_id", "warehouse_id", "location_id")
-def _compute_route_ids(self):
-    route_obj = self.env["stock.route"]
-    routes = route_obj.search(
-        [("warehouse_ids", "in", self.mapped("warehouse_id").ids)]
-    )
-    routes_by_warehouse = {}
-    for route in routes:
-        for warehouse in route.warehouse_ids:
-            routes_by_warehouse.setdefault(warehouse.id, self.env["stock.route"])
-            routes_by_warehouse[warehouse.id] |= route
-    for record in self:
-        routes = route_obj
-        if record.product_id:
-            routes += record.product_id.mapped(
-                "route_ids"
-            ) | record.product_id.mapped("categ_id").mapped("total_route_ids")
-        if record.warehouse_id and routes_by_warehouse.get(record.warehouse_id.id):
-            routes |= routes_by_warehouse[record.warehouse_id.id]
-        parents = record.get_parents().ids
-        # ruff: noqa: B023
-        record.route_ids = routes.filtered(
-            lambda r: any(p.location_dest_id.id in parents for p in r.rule_ids)
-        )
-```
-
-**Route sources:**
-1. Product-specific routes (`product_id.route_ids`)
-2. Product category routes (`product_id.categ_id.total_route_ids`)
-3. Warehouse routes
-4. Filtered by rules that deliver to the location or its parents
-
----
-
-### get_parents()
-
-Returns all parent locations up to the root location.
-
-**Returns:** `stock.location` recordset - Location hierarchy from `location_id` to root
-
-```python
-def get_parents(self):
-    location = self.location_id
-    result = location
-    while location.location_id:
-        location = location.location_id
-        result |= location
-    return result
-```
-
-**Example:**
-
-```python
-request = env['stock.request'].browse(request_id)
-parents = request.get_parents()
-for loc in parents:
-    print(f"{loc.name} (ID: {loc.id})")
-# Output:
-# WH/Stock/Shelf 1 (ID: 15)
-# WH/Stock (ID: 8)
-# WH (ID: 5)
-# Physical Locations (ID: 1)
-```
-
----
-
-### default_get()
-
-Provides default values for warehouse and location.
-
-**Parameters:**
-- `fields` (list): List of field names to get defaults for
-
-**Returns:** `dict` - Default values
-
-```python
-@api.model
-def default_get(self, fields):
-    res = super().default_get(fields)
-    warehouse = None
-    if "warehouse_id" not in res and res.get("company_id"):
-        warehouse = self.env["stock.warehouse"].search(
-            [("company_id", "=", res["company_id"])], limit=1
-        )
-    if warehouse:
-        res["warehouse_id"] = warehouse.id
-        res["location_id"] = warehouse.lot_stock_id.id
-    return res
-```
-
-**Behavior:**
-- If no warehouse is set but company is, finds first warehouse for that company
-- Sets location to warehouse's stock location (`lot_stock_id`)
-
-## Onchange Methods
-
-### onchange_warehouse_id()
-
-Updates location and company when warehouse changes.
-
-```python
-@api.onchange("warehouse_id")
-def onchange_warehouse_id(self):
-    if self._name == "stock.request" and self.order_id:
-        # Skip if request belongs to an order
-        return
-    if self.warehouse_id:
-        loc_wh = self.location_id.warehouse_id
-        if self.warehouse_id != loc_wh:
-            self.location_id = self.warehouse_id.lot_stock_id.id
-        if self.warehouse_id.company_id != self.company_id:
-            self.company_id = self.warehouse_id.company_id
-```
-
-**Behavior:**
-1. Skips if record is a stock.request with an order (order controls location)
-2. Updates location to warehouse's stock location if different
-3. Updates company to match warehouse company
-
----
-
-### onchange_location_id()
-
-Updates warehouse when location changes.
-
-```python
-@api.onchange("location_id")
-def onchange_location_id(self):
-    if self.location_id:
-        loc_wh = self.location_id.warehouse_id
-        if loc_wh and self.warehouse_id != loc_wh:
-            self.warehouse_id = loc_wh
-            self.with_context(no_change_childs=True).onchange_warehouse_id()
-```
-
-**Behavior:**
-- Updates warehouse to location's warehouse if different
-- Calls `onchange_warehouse_id()` with special context to prevent cascading changes
-
----
-
-### onchange_company_id()
-
-Updates warehouse when company changes.
-
-```python
-@api.onchange("company_id")
-def onchange_company_id(self):
-    if self.company_id and (
-        not self.warehouse_id or self.warehouse_id.company_id != self.company_id
-    ):
-        self.warehouse_id = self.env["stock.warehouse"].search(
-            [
-                "|",
-                ("company_id", "=", False),
-                ("company_id", "=", self.company_id.id),
-            ],
-            limit=1,
-        )
-        self.onchange_warehouse_id()
-```
-
-**Behavior:**
-- Finds first warehouse for the new company (or without company)
-- Triggers warehouse onchange to update location
+<ResponseField name="onchange_product_id" type="method">
+  Sets the product's default UoM when product changes.
+  
+  **Decorator:** `@api.onchange("product_id")`
+  
+  ```python stock_request/models/stock_request_abstract.py:250
+  @api.onchange("product_id")
+  def onchange_product_id(self):
+      if self.product_id:
+          self.product_uom_id = self.product_id.uom_id
+  ```
+</ResponseField>
 
 ---
-
-### onchange_product_id()
-
-Updates product UoM when product changes.
-
-```python
-@api.onchange("product_id")
-def onchange_product_id(self):
-    if self.product_id:
-        self.product_uom_id = self.product_id.uom_id
-```
-
-**Behavior:**
-- Sets `product_uom_id` to product's default UoM
 
 ## Constraints
 
 ### SQL Constraints
 
-- `name_uniq`: Name must be unique per company
+<Warning>
+**name_uniq:** Name must be unique per company.
+
+```python
+_sql_constraints = [
+    ("name_uniq", "unique(name, company_id)", "Name must be unique")
+]
+```
+</Warning>
 
 ### Python Constraints
 
-<Expandable title="_check_company_constrains">
-  Validates that all related records (product, location, warehouse, route) belong to the same company or have no company restriction.
+<ResponseField name="_check_company_constrains">
+  Validates that related models belong to the same company.
   
-  **Fields checked:**
-  - `product_id.company_id`
-  - `location_id.company_id`
-  - `warehouse_id.company_id`
-  - `route_id.company_id`
+  **Constraint:** `company_id`, `product_id`, `warehouse_id`, `location_id`, `route_id`
   
-  **Raises:** `ValidationError` with specific message for each field
+  **Checks:**
+  - Product company (if set) must match record company
+  - Location company (if set) must match record company
+  - Warehouse company must match record company
+  - Route company (if set) must match record company
+  
+  **Raises:** `ValidationError` with specific message for each mismatch
+  
+  ```python stock_request/models/stock_request_abstract.py:149
+  @api.constrains(
+      "company_id", "product_id", "warehouse_id", "location_id", "route_id"
+  )
+  def _check_company_constrains(self):
+      for rec in self:
+          if (
+              rec.product_id.company_id
+              and rec.product_id.company_id != rec.company_id
+          ):
+              raise ValidationError(
+                  _(
+                      "You have entered a product that is assigned "
+                      "to another company."
+                  )
+              )
+          # ... additional checks for location, warehouse, route
+  ```
+</ResponseField>
+
+<ResponseField name="_check_product_uom">
+  Validates that the UoM category matches the product's UoM category.
+  
+  **Constraint:** `product_id`
+  
+  **Rule:** `product_id.uom_id.category_id` must equal `product_uom_id.category_id`
+  
+  **Raises:** `ValidationError`
+  
+  ```python stock_request/models/stock_request_abstract.py:194
+  @api.constrains("product_id")
+  def _check_product_uom(self):
+      if any(
+          request.product_id.uom_id.category_id != request.product_uom_id.category_id
+          for request in self
+      ):
+          raise ValidationError(
+              _(
+                  "You have to select a product unit of measure in the "
+                  "same category than the default unit "
+                  "of measure of the product"
+              )
+          )
+  ```
+</ResponseField>
+
+---
+
+## Field Behaviors
+
+### UoM Handling
+
+The abstract model handles unit of measure conversions:
+
+<CodeGroup>
+
+```python Request UoM
+# User specifies quantity in a convenient UoM
+product_uom_qty = 10.0  # e.g., 10 boxes
+product_uom_id = uom_box  # Box UoM
+```
+
+```python Base UoM
+# System converts to product's base UoM
+product_qty = 120.0  # e.g., 120 units (computed)
+# If 1 box = 12 units
+```
+
+</CodeGroup>
+
+### Route Filtering
+
+Routes are filtered based on multiple criteria:
+
+<Expandable title="Route Selection Logic">
+
+1. **Product Routes**: Routes assigned to the product or its category
+2. **Warehouse Routes**: Routes associated with the warehouse
+3. **Location Filtering**: Only routes with rules pointing to the location or its parents
+4. **Result**: Union of all matching routes
+
+**Example:**
+- Product has route "Buy"
+- Warehouse has routes "Buy" and "Manufacture"
+- Location is Stock/Shelf/A
+- Buy route has rule with destination Stock/Shelf
+- Result: route_ids includes "Buy" (product + warehouse + valid destination)
+
 </Expandable>
 
-<Expandable title="_check_product_uom">
-  Validates that the UoM has the same category as the product's default UoM.
+### Location Hierarchy
+
+The `get_parents()` method is used for route filtering:
+
+```python
+# Example location hierarchy
+Physical Locations
+└── WH/Stock  (id=10)
+    └── WH/Stock/Shelf  (id=20)
+        └── WH/Stock/Shelf/A  (id=30)
+
+# For location_id = 30 (Shelf A)
+get_parents() returns: [30, 20, 10]
+
+# Routes with rules pointing to any of these locations are valid
+```
+
+---
+
+## Domain Specifications
+
+### Product Domain
+
+<ParamField path="product_id" type="domain">
+  **Domain:** `[('type', 'in', ['product', 'consu'])]`
   
-  **Checks:** `product_id.uom_id.category_id == product_uom_id.category_id`
+  Only allows:
+  - `product` - Storable products (tracked inventory)
+  - `consu` - Consumable products (not tracked, but can be requested)
   
-  **Raises:** `ValidationError` - "You have to select a product unit of measure in the same category than the default unit of measure of the product"
-</Expandable>
+  Excludes:
+  - `service` - Service products (no inventory)
+</ParamField>
+
+### Location Domain
+
+<ParamField path="location_id" type="domain">
+  **Domain:** `[('usage', 'in', ['internal', 'transit'])]` (when virtual locations not allowed)
+  
+  Allows:
+  - `internal` - Internal locations (normal warehouse locations)
+  - `transit` - Transit locations (inter-warehouse transfers)
+  
+  **Note:** Domain is dynamic based on `allow_virtual_location` setting
+</ParamField>
+
+### UoM Domain
+
+<ParamField path="product_uom_id" type="domain">
+  **Domain:** `[('category_id', '=?', allowed_uom_categ_id)]`
+  
+  Restricts UoM selection to the same category as the product's base UoM.
+  
+  **Example:** If product uses "Units" (category: Unit), can select "Units", "Dozens", "Dozens", but not "kg" or "Liters"
+</ParamField>
+
+### Route Domain
+
+<ParamField path="route_id" type="domain">
+  **Domain:** `[('id', 'in', route_ids)]`
+  
+  Restricts route selection to computed available routes based on product, warehouse, and location.
+</ParamField>
+
+---
 
 ## Usage in Inheritance
 
-This abstract model is inherited by `stock.request` to provide base functionality:
+### Concrete Models
 
-```python
+Two models inherit from this abstract model:
+
+<CodeGroup>
+
+```python stock.request
 class StockRequest(models.Model):
     _name = "stock.request"
-    _description = "Stock Request"
-    _inherit = "stock.request.abstract"  # Inherits all fields and methods
-    _order = "id desc"
-    
-    # Additional fields specific to stock.request
-    state = fields.Selection(...)
-    requested_by = fields.Many2one(...)
-    # ...
-```
-
-## Extension Example
-
-To extend stock request functionality with custom fields:
-
-```python
-class StockRequestCustom(models.Model):
     _inherit = "stock.request.abstract"
     
-    # Add custom field
-    priority = fields.Selection([
-        ('low', 'Low'),
-        ('normal', 'Normal'),
-        ('high', 'High'),
-    ], default='normal')
-    
-    # Override method
-    @api.onchange('product_id')
-    def onchange_product_id(self):
-        super().onchange_product_id()
-        # Add custom logic
-        if self.product_id and self.product_id.categ_id.name == 'Urgent':
-            self.priority = 'high'
+    # Adds state, allocations, moves, etc.
+    state = fields.Selection(...)
+    allocation_ids = fields.One2many(...)
+    # ... additional fields
 ```
+
+```python stock.request.order
+class StockRequestOrder(models.Model):
+    _name = "stock.request.order"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+    # Does NOT inherit stock.request.abstract
+    # But has similar fields
+```
+
+</CodeGroup>
+
+<Note>
+Actually, looking at the code, `stock.request.order` does NOT inherit from `stock.request.abstract`. It defines its own similar fields. Only `stock.request` inherits from the abstract model.
+</Note>
+
+### Shared Logic
+
+The abstract model provides shared logic for:
+
+- **UoM conversion** via `_compute_product_qty()`
+- **Route computation** via `_compute_route_ids()`
+- **Company constraints** via `_check_company_constrains()`
+- **Onchange handlers** for warehouse, location, company, product
+
+---
 
 ## See Also
 
-- [stock.request](/api/stock-request) - Concrete implementation inheriting this abstract model
-- [stock.request.order](/api/stock-request-order) - Order model with similar field structure
-- [stock.request.allocation](/api/stock-request-allocation) - Allocation linking model
+- [stock.request](/api/stock-request) - Main concrete implementation
+- [stock.request.order](/api/stock-request-order) - Order grouping (has similar fields but doesn't inherit)
+- [stock.request.allocation](/api/stock-request-allocation) - Links requests to moves

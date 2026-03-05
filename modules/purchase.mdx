@@ -3,185 +3,446 @@ title: Stock Request Purchase
 description: Display and manage purchase orders created from stock requests
 ---
 
-The Stock Request Purchase module bridges stock requests with the purchasing system, allowing users to view and manage purchase orders that are automatically created as a result of stock request confirmations.
+The `stock_request_purchase` module bridges stock requests with the purchasing system, allowing users to track and manage purchase orders that are automatically generated from confirmed stock requests.
 
 ## Overview
 
-This module enables integration between stock requests and purchase orders. When a stock request is confirmed and the procurement rules determine that a purchase is needed, users can display and track the resulting purchase orders directly from the stock request form.
+**Module Name**: `stock_request_purchase`  
+**Version**: 18.0.1.0.0  
+**License**: LGPL-3  
+**Dependencies**: `stock_request`, `purchase_stock`  
+**Author**: ForgeFlow, OCA  
+**Maintainers**: [@LoisRForgeFlow](https://github.com/LoisRForgeFlow), [@etobella](https://github.com/etobella)  
+**Auto Install**: Yes (when both dependencies are met)
+
+<Info>
+This module enables visibility into purchase orders created as a consequence of stock requests, providing seamless integration between internal requests and external procurement.
+</Info>
 
 ## Key Features
 
-- **Purchase Order Visibility**: Display POs created from stock requests
-- **Direct Access**: Navigate from stock requests to related purchase orders
-- **Automatic Integration**: Seamless connection with procurement system
-- **Order Tracking**: View purchase order status from stock request context
+### Purchase Order Visibility
 
-## Dependencies
+- View purchase orders generated from stock requests
+- Smart button showing PO count on request form
+- Direct navigation from request to related POs
+- Track PO status from stock request interface
 
-```python
-"depends": ["stock_request", "purchase_stock"]
-```
+### Automatic Integration
 
-<Info>
-This module is marked as `auto_install: True`, meaning it installs automatically when both `stock_request` and `purchase_stock` modules are installed.
-</Info>
+- POs created automatically via procurement rules
+- Stock request origin tracked on purchase order lines
+- Bidirectional reference between requests and POs
+- Updates propagate between requests and orders
+
+### Order-Level Tracking
+
+- View all POs from stock request orders
+- Consolidated purchase order information
+- Track multiple requests fulfilled by same PO
 
 ## Installation
 
-### Automatic Installation
+<Note>
+This module installs automatically when both `stock_request` and `purchase_stock` modules are installed.
+</Note>
 
-The module installs automatically when:
-
-1. `stock_request` module is installed
-2. `purchase_stock` module is installed
-3. You update the module list or restart Odoo
-
-### Manual Installation
-
-If needed, you can manually install:
-
-1. Go to **Apps**
-2. Search for "Stock Request Purchase"
-3. Click **Install**
+<Steps>
+  <Step title="Install Prerequisites">
+    Ensure these modules are installed:
+    - `stock_request` (Stock Request)
+    - `purchase_stock` (Purchase Stock)
+  </Step>
+  
+  <Step title="Automatic Installation">
+    The module installs automatically due to `auto_install: True` setting.
+  </Step>
+  
+  <Step title="Verify Installation">
+    Check that purchase order smart buttons appear on stock request forms.
+  </Step>
+</Steps>
 
 ## Configuration
 
-No specific configuration is required. The module works out-of-the-box once installed.
+### Procurement Rule Setup
 
-<Note>
-Ensure your procurement rules are properly configured to trigger purchase orders for the products and locations you're requesting.
-</Note>
+For stock requests to generate purchase orders, configure procurement rules:
+
+<Steps>
+  <Step title="Configure Product Routes">
+    Go to **Inventory > Products > Products** and select a product.
+    
+    In the **Inventory** tab:
+    - Check **Can be Purchased**
+    - Add **Buy** route
+  </Step>
+  
+  <Step title="Set Vendor Information">
+    In the **Purchase** tab:
+    - Add at least one vendor
+    - Set lead time
+    - Configure minimum order quantity if needed
+  </Step>
+  
+  <Step title="Configure Location Rules">
+    Go to **Inventory > Configuration > Routes** and verify:
+    - Buy route has rule to trigger PO
+    - Rule applies to destination location
+  </Step>
+</Steps>
+
+### Warehouse Configuration
+
+Ensure warehouse is configured for purchasing:
+
+```
+Inventory > Configuration > Warehouses
+└── Select Warehouse
+    ├── Incoming Shipments: 1, 2, or 3 steps
+    └── Buy to Resupply: Enabled
+```
 
 ## Usage
 
-### Viewing Purchase Orders from Stock Requests
+### Creating Request that Triggers Purchase
 
-1. Navigate to **Stock Requests > Stock Requests**
-2. Open a confirmed stock request that triggered a purchase order
-3. Look for the **Purchase Orders** button or smart button
-4. Click to view the related purchase orders
+<Steps>
+  <Step title="Create Stock Request">
+    Go to **Stock Requests > Stock Requests** and click **Create**.
+    
+    Fill in:
+    - **Product**: Select a purchasable product
+    - **Quantity**: Amount needed
+    - **Location**: Destination (must trigger buy rule)
+    - **Expected Date**: When needed
+  </Step>
+  
+  <Step title="Confirm Request">
+    Click **Confirm**. The system evaluates procurement rules.
+  </Step>
+  
+  <Step title="View Created PO">
+    If procurement triggers a purchase:
+    - Smart button **Purchase Orders** appears
+    - Shows count of related POs
+    - Click to view purchase order(s)
+  </Step>
+  
+  <Step title="Track PO Status">
+    Monitor purchase order progress:
+    - View PO state (Draft, Sent, Purchase Order)
+    - Check delivery status
+    - Track when products received
+  </Step>
+</Steps>
 
-<Info>
-The purchase order button only appears when the confirmation of the stock request results in an immediate purchase order.
-</Info>
+### Viewing Related Purchase Orders
 
-### Workflow Example
+#### From Stock Request
 
-1. **Create Stock Request**
-   - Product: Raw Material A
-   - Quantity: 100 units
-   - Location: WH/Stock
+1. Open a stock request
+2. Click the **Purchase Orders** smart button (shows count)
+3. View list of related POs
+4. Click any PO to see details
 
-2. **Confirm Request**
-   - System evaluates procurement rules
-   - Determines purchase is needed
-   - Creates RFQ/Purchase Order
+#### From Stock Request Order
 
-3. **View Purchase Order**
-   - Click the PO smart button on the stock request
-   - Review or process the purchase order
-   - Track delivery status
+1. Open a stock request order
+2. Click **Purchase Orders** smart button
+3. See all POs generated from any request in the order
+4. Access consolidated purchase information
 
-4. **Receive Goods**
-   - Process the incoming shipment
-   - Stock request is fulfilled when goods arrive
+### Managing Purchase Order Lifecycle
 
-## Technical Details
+<Accordion title="Draft PO Created">
+When stock request confirmed:
+- PO created in draft state
+- Contains line(s) for requested product(s)
+- Origin references stock request
+- Can be edited before confirmation
+</Accordion>
 
-### Module Information
+<Accordion title="PO Confirmed">
+Purchase manager confirms PO:
+- Order sent to supplier
+- Expected receipt date set
+- Stock request tracks PO status
+</Accordion>
 
-- **Technical Name**: `stock_request_purchase`
-- **Version**: 18.0.1.0.0
-- **License**: LGPL-3
-- **Category**: Warehouse Management
-- **Author**: ForgeFlow, OCA
-- **Maintainers**: LoisRForgeFlow, etobella
-- **Auto Install**: Yes
+<Accordion title="Products Received">
+When products arrive:
+- Receive products via incoming shipment
+- Stock moves complete
+- Stock request quantities update
+- Request moves to done when fully received
+</Accordion>
 
-### Included Views
+## Data Models
 
-The module extends:
+### Stock Request (Extended)
 
-- Stock request views with purchase order smart buttons
-- Stock request order views with PO references
-- Purchase order views with stock request links
+Adds purchase order relationship:
 
-## Known Issues / Roadmap
-
-<Warning>
-When a Stock Request is cancelled, it does not automatically cancel the quantity included in the related Purchase Order.
-</Warning>
-
-### Current Limitations
-
-- Cancelling a stock request does not reduce or cancel PO quantities
-- Manual adjustment of purchase orders may be needed after cancellation
-- Future versions may include automatic PO line cancellation
-
-### Workaround
-
-If you cancel a stock request that has generated a purchase order:
-
-1. Navigate to the related purchase order
-2. Manually adjust the quantities on PO lines
-3. Or cancel the entire PO if no longer needed
-
-## Integration Scenarios
-
-### Scenario 1: Direct Purchase
-
+```python
+class StockRequest(models.Model):
+    _inherit = 'stock.request'
+    
+    purchase_line_ids = fields.One2many(
+        'purchase.order.line',
+        inverse_name='stock_request_id',
+        string='Purchase Order Lines',
+        readonly=True
+    )
+    
+    purchase_order_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_purchase_order_ids',
+        string='Purchase Orders',
+        readonly=True
+    )
+    
+    purchase_count = fields.Integer(
+        compute='_compute_purchase_order_ids',
+        string='Purchase Order Count'
+    )
 ```
-Stock Request → Procurement Rules → Purchase Order → Receipt
+
+### Purchase Order Line (Extended)
+
+Tracks originating stock request:
+
+```python
+class PurchaseOrderLine(models.Model):
+    _inherit = 'purchase.order.line'
+    
+    stock_request_id = fields.Many2one(
+        'stock.request',
+        string='Stock Request',
+        readonly=True
+    )
 ```
 
-When procurement rules point directly to a supplier route:
-- Stock request confirmation creates RFQ immediately
-- User can view and manage the PO from stock request
-- Receipt completes the stock request
+### Stock Request Order (Extended)
 
-### Scenario 2: Multi-Step Purchase
+Adds order-level purchase tracking:
 
-```
-Stock Request → Procurement → Purchase → Quality Check → Stock
-```
-
-For locations with quality control:
-- PO is created and visible from stock request
-- Additional quality check steps occur
-- Stock request completes after quality approval
-
-### Scenario 3: Make to Order
-
-```
-Stock Request → Buy Route → Vendor → Receipt → Transfer to Location
+```python
+class StockRequestOrder(models.Model):
+    _inherit = 'stock.request.order'
+    
+    purchase_order_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_purchase_order_ids',
+        string='Purchase Orders'
+    )
+    
+    purchase_count = fields.Integer(
+        compute='_compute_purchase_order_ids'
+    )
 ```
 
-For locations supplied via purchase:
-- Request triggers purchase procurement
-- Internal transfer may follow receipt
-- All steps visible from stock request
+## Views
+
+### Stock Request Form View
+
+Enhanced with:
+
+```xml
+<!-- Smart button for purchase orders -->
+<button name="action_view_purchase_orders"
+        type="object"
+        class="oe_stat_button"
+        icon="fa-shopping-cart"
+        attrs="{'invisible': [('purchase_count', '=', 0)]}">
+    <field name="purchase_count" widget="statinfo" 
+           string="Purchase Orders"/>
+</button>
+```
+
+### Purchase Order Form View
+
+Enhanced with:
+
+- Stock request reference on order lines
+- Origin field shows stock request name
+- Smart button to view related stock requests
+
+## Procurement Flow
+
+### Request to Purchase Flow
+
+```mermaid
+flowchart LR
+    A[Create Stock Request] --> B[Confirm Request]
+    B --> C{Evaluate Procurement Rules}
+    C -->|Buy Route| D[Create Purchase Order]
+    C -->|Other Route| E[Other Action]
+    D --> F[PO Draft]
+    F --> G[Confirm PO]
+    G --> H[Receive Products]
+    H --> I[Complete Request]
+```
+
+### Technical Flow
+
+<Steps>
+  <Step title="Request Confirmation">
+    User confirms stock request
+    ```python
+    stock_request.action_confirm()
+    ```
+  </Step>
+  
+  <Step title="Procurement Group">
+    Procurement group created and linked
+    ```python
+    procurement_group = env['procurement.group'].create({
+        'name': stock_request.name,
+    })
+    ```
+  </Step>
+  
+  <Step title="Run Procurement">
+    Procurement engine evaluates rules
+    ```python
+    env['procurement.group'].run([
+        Procurement(
+            product_id,
+            product_qty,
+            product_uom,
+            location_id,
+            ...
+        )
+    ])
+    ```
+  </Step>
+  
+  <Step title="PO Creation">
+    Buy rule triggers PO creation
+    ```python
+    purchase_line = env['purchase.order.line'].create({
+        'product_id': product.id,
+        'product_qty': qty,
+        'stock_request_id': stock_request.id,
+        ...
+    })
+    ```
+  </Step>
+</Steps>
 
 ## Best Practices
 
-### Procurement Rule Setup
+### Vendor Configuration
 
-- Configure clear buy routes for products
-- Set appropriate lead times on suppliers
-- Define vendor priorities for automatic selection
+<Tip>
+**Multiple Vendors**: Configure multiple vendors with different lead times to optimize procurement.
+</Tip>
 
-### Request Management
+<Tip>
+**Lead Times**: Set accurate vendor lead times to ensure stock requests are fulfilled on time.
+</Tip>
 
-- Review generated purchase orders promptly
-- Consolidate multiple requests when possible
-- Coordinate with purchasing team for optimal ordering
+### Request Planning
 
-### Monitoring
+<Tip>
+**Expected Dates**: Set expected dates considering vendor lead time + internal processing time.
+</Tip>
 
-- Regularly check stock requests with pending POs
-- Track PO delivery dates against request deadlines
-- Follow up on delayed purchase orders
+<Tip>
+**Batch Requests**: Use stock request orders to group requests, potentially consolidating POs and reducing ordering costs.
+</Tip>
 
-## Integration with Other Modules
+### Route Configuration
+
+<Tip>
+**Specific Routes**: Configure location-specific routes to control when stock requests trigger purchases vs. internal transfers.
+</Tip>
+
+## Known Issues
+
+<Warning>
+**Cancellation Limitation**: When a stock request is cancelled, the quantity included in the purchase order is NOT automatically cancelled. You must manually adjust the PO.
+</Warning>
+
+### Workaround for Cancellation
+
+When cancelling a request with open PO:
+
+<Steps>
+  <Step title="Note PO Reference">
+    Before cancelling, note the related purchase order number.
+  </Step>
+  
+  <Step title="Cancel Stock Request">
+    Cancel the stock request as normal.
+  </Step>
+  
+  <Step title="Adjust Purchase Order">
+    Manually open the PO and:
+    - Reduce the quantity on the line
+    - Or cancel the line entirely
+    - Add note explaining the change
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### No PO Created After Confirmation
+
+**Problem**: Stock request confirmed but no purchase order generated.
+
+**Solutions**:
+1. Verify product has **Can be Purchased** checked
+2. Ensure **Buy** route is active on product
+3. Check vendor is configured with price
+4. Verify procurement rules exist for destination location
+5. Review product routes apply to requested location
+
+### Wrong Vendor Selected
+
+**Problem**: PO created with unintended vendor.
+
+**Solutions**:
+1. Check vendor priority/sequence in product suppliers
+2. Review vendor lead times (system picks best option)
+3. Ensure correct vendor marked as default
+
+### PO Quantity Incorrect
+
+**Problem**: Purchase order quantity doesn't match request.
+
+**Solutions**:
+1. Check minimum order quantity on vendor product
+2. Review product packaging configuration
+3. Verify UoM conversions between request and purchase
+4. Check if multiple requests consolidated into one PO
+
+## Integration Examples
+
+### Programmatic PO Access
+
+```python
+# Get all POs from a stock request
+stock_request = env['stock.request'].browse(request_id)
+purchase_orders = stock_request.purchase_order_ids
+
+for po in purchase_orders:
+    print(f"PO: {po.name}, State: {po.state}, Total: {po.amount_total}")
+```
+
+### Finding Requests from PO
+
+```python
+# Get stock requests that generated a PO
+purchase_order = env['purchase.order'].browse(po_id)
+stock_requests = purchase_order.order_line.mapped('stock_request_id')
+
+for request in stock_requests:
+    print(f"Request: {request.name}, Product: {request.product_id.name}")
+```
+
+## Related Modules
 
 <CardGroup cols={2}>
   <Card title="Stock Request Core" icon="box" href="/modules/core">
@@ -192,22 +453,35 @@ For locations supplied via purchase:
     Similar integration for manufacturing orders
   </Card>
   
-  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
-    Combine with kanban for automated purchasing
+  <Card title="Stock Request Submit" icon="paper-plane" href="/modules/submit">
+    Add approval before PO creation
   </Card>
   
-  <Card title="Tier Validation" icon="layer-group" href="/modules/tier-validation">
-    Add approvals before PO creation
+  <Card title="Purchase Module" icon="book" href="https://www.odoo.com/documentation/18.0/applications/inventory_and_mrp/purchase.html">
+    Odoo standard purchasing documentation
   </Card>
 </CardGroup>
 
-## Support
+## Advanced Configuration
 
-For issues and feature requests:
+### Multiple Warehouses
 
-- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
-- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_purchase)
+When working with multiple warehouses:
 
-<Info>
-Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
-</Info>
+1. Configure warehouse-specific procurement rules
+2. Set preferred vendors per warehouse if needed
+3. Use stock request orders to group by warehouse
+4. Review inter-warehouse transfers vs. direct purchase
+
+### Dropshipping
+
+For dropship scenarios:
+
+1. Configure dropship route on products
+2. Stock requests can trigger dropship POs
+3. Products ship directly to request location
+4. No incoming shipment to main warehouse
+
+<Note>
+Dropshipping requires the `stock_dropshipping` module to be installed.
+</Note>

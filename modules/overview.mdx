@@ -90,6 +90,32 @@ Install the core `stock_request` module first, then add extension modules based 
 **Complete System with Approvals**
 - Install: `stock_request`, `stock_request_kanban`, `stock_request_submit`, `stock_request_tier_validation`, `base_tier_validation`
 
+## Key Features Across Modules
+
+### Stock Management
+- Internal stock requests for product transfers
+- Procurement rule integration
+- Stock move tracking and allocation
+- Multi-location support
+
+### Procurement Integration
+- Automatic purchase order generation
+- Manufacturing order creation
+- BOM-based component requests
+- Route-based fulfillment
+
+### Workflow Management
+- Draft, submitted, and confirmed states
+- Multi-tier approval processes
+- User and manager permission levels
+- Request cancellation handling
+
+### Advanced Features
+- Kanban card printing with barcodes
+- Directional requests (to/from warehouse)
+- Return request processing
+- Stock request orders for grouping requests
+
 ## License and Credits
 
 All modules in the Stock Request framework are:
@@ -97,7 +123,20 @@ All modules in the Stock Request framework are:
 - Maintained by the OCA (Odoo Community Association)
 - Part of the `stock-logistics-request` repository
 - Available for Odoo 18.0
+- Primarily developed by ForgeFlow, Creu Blanca, Open Source Integrators, and Tecnativa
 
 <Warning>
 This is a Beta-maturity framework. While stable for production use, some features may still be under active development.
 </Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/modules/core">
+    Learn about the core Stock Request module
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure your stock request system
+  </Card>
+</CardGroup>

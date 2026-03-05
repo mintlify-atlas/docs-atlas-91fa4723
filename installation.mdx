@@ -1,208 +1,445 @@
 ---
 title: Installation
-description: How to install the Stock Request module in Odoo
+description: Step-by-step guide to install the Stock Request framework in your Odoo instance
 ---
-
-This guide walks you through installing the Stock Request module in your Odoo instance.
 
 ## Prerequisites
 
-<Note>
-The Stock Request module requires Odoo 18.0 and the base `stock` module to be installed.
-</Note>
+Before installing the Stock Request module, ensure your environment meets these requirements:
 
-### Dependencies
-
-Based on the module manifest, the Stock Request module depends on:
-
-- **stock** - Odoo's core inventory management module
-
-These dependencies are automatically installed when you install the Stock Request module.
+<CardGroup cols={2}>
+  <Card title="Odoo Version" icon="version">
+    Odoo 18.0 or compatible version
+  </Card>
+  
+  <Card title="Required Modules" icon="puzzle-piece">
+    The `stock` module must be installed (comes standard with Odoo)
+  </Card>
+  
+  <Card title="User Permissions" icon="user-shield">
+    Administrator access to install modules
+  </Card>
+  
+  <Card title="Git Access" icon="code-branch">
+    Access to OCA repositories (for source installation)
+  </Card>
+</CardGroup>
 
 ## Installation Methods
 
-### Method 1: Install via Odoo Apps (Recommended)
+<Tabs>
+  <Tab title="From Source (Recommended)">
+    ### Clone the Repository
 
-<Steps>
-  <Step title="Access Apps Menu">
-    Log in to your Odoo instance as an administrator and navigate to **Apps** from the main menu.
-  </Step>
-  
-  <Step title="Update Apps List">
-    Click **Update Apps List** to refresh the available modules. Confirm the update when prompted.
-    
+    The Stock Request module is part of the OCA stock-logistics-request repository.
+
+    <Steps>
+      <Step title="Navigate to your Odoo addons directory">
+        ```bash
+        cd /path/to/odoo/addons
+        ```
+      </Step>
+
+      <Step title="Clone the OCA repository">
+        ```bash
+        git clone https://github.com/OCA/stock-logistics-request.git -b 18.0
+        ```
+        
+        <Note>
+        Replace `18.0` with your Odoo version branch (e.g., `17.0`, `16.0`)
+        </Note>
+      </Step>
+
+      <Step title="Add the path to your Odoo configuration">
+        Edit your `odoo.conf` file:
+        
+        ```ini
+        [options]
+        addons_path = /path/to/odoo/addons,/path/to/stock-logistics-request
+        ```
+      </Step>
+
+      <Step title="Restart Odoo server">
+        ```bash
+        sudo systemctl restart odoo
+        # or
+        ./odoo-bin -c /path/to/odoo.conf --stop-after-init
+        ```
+      </Step>
+
+      <Step title="Update the app list">
+        In Odoo:
+        1. Activate Developer Mode
+        2. Go to **Apps** menu
+        3. Click **Update Apps List**
+        4. Click **Update** in the confirmation dialog
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Using pip (Development)">
+    ### Install via pip
+
     <Warning>
-    You need to activate Developer Mode to see the "Update Apps List" button. Go to Settings → Activate Developer Mode.
+    This method is primarily for development environments. For production, use the source installation method.
     </Warning>
-  </Step>
-  
-  <Step title="Search for Stock Request">
-    In the Apps search bar, type `stock request` or search for `stock_request`.
-  </Step>
-  
-  <Step title="Install the Module">
-    Find "Stock Request" in the search results and click **Install**. Odoo will automatically install all required dependencies.
-  </Step>
-  
-  <Step title="Wait for Installation">
-    The installation process may take a few moments. Once complete, you'll see the Stock Request menu items in your interface.
-  </Step>
-</Steps>
 
-### Method 2: Install via Command Line
+    ```bash
+    pip install odoo18-addon-stock-request
+    ```
 
-For server administrators who prefer command-line installation:
+    Or add to your `requirements.txt`:
+
+    ```txt
+    odoo18-addon-stock-request
+    ```
+
+    Then install:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    ### Docker Installation
+
+    If you're using Docker for your Odoo deployment:
+
+    <Steps>
+      <Step title="Update your Dockerfile">
+        ```dockerfile
+        FROM odoo:18.0
+        
+        USER root
+        
+        # Clone OCA stock-logistics-request
+        RUN cd /mnt/extra-addons && \
+            git clone https://github.com/OCA/stock-logistics-request.git -b 18.0
+        
+        USER odoo
+        ```
+      </Step>
+
+      <Step title="Build the image">
+        ```bash
+        docker build -t odoo-custom:18.0 .
+        ```
+      </Step>
+
+      <Step title="Run with the custom image">
+        Update your `docker-compose.yml`:
+        
+        ```yaml
+        services:
+          web:
+            image: odoo-custom:18.0
+            depends_on:
+              - db
+            ports:
+              - "8069:8069"
+            volumes:
+              - odoo-data:/var/lib/odoo
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Module Installation
+
+### Core Module Installation
 
 <Steps>
-  <Step title="Clone the Repository">
-    Clone the OCA stock-logistics-request repository to your Odoo addons directory:
-    
-    ```bash
-    cd /path/to/odoo/addons
-    git clone https://github.com/OCA/stock-logistics-request.git -b 18.0
-    ```
+  <Step title="Access the Apps menu">
+    Log in to Odoo with administrator privileges and navigate to **Apps**.
   </Step>
-  
-  <Step title="Update Addons Path">
-    Ensure your Odoo configuration file includes the path to the cloned repository:
+
+  <Step title="Search for Stock Request">
+    Remove the "Apps" filter and search for "Stock Request".
     
-    ```ini
-    [options]
-    addons_path = /path/to/odoo/addons,/path/to/odoo/addons/stock-logistics-request
-    ```
+    <Info>
+    You should see multiple modules:
+    - Stock Request (core)
+    - Stock Request Purchase
+    - Stock Request MRP
+    - Stock Request Tier Validation
+    - And others...
+    </Info>
   </Step>
-  
-  <Step title="Restart Odoo Server">
-    Restart your Odoo server to load the new module:
+
+  <Step title="Install the core module">
+    Click **Install** on the "Stock Request" module.
     
-    ```bash
-    sudo systemctl restart odoo
-    # or
-    ./odoo-bin -c /path/to/odoo.conf
-    ```
+    The module will install with the following components:
+    - Stock Request model (`stock.request`)
+    - Stock Request Order model (`stock.request.order`)
+    - Security groups and access rules
+    - Menu items and views
+    - Sequence for request numbering
   </Step>
-  
-  <Step title="Install via Database Manager">
-    Follow Method 1 (Steps 1-5) to install the module through the Apps interface.
+
+  <Step title="Verify installation">
+    After installation completes:
+    1. Refresh your browser
+    2. Look for the **Stock Requests** menu in the main menu bar
+    3. You should see submenu items: Stock Requests, Stock Request Orders (if enabled)
   </Step>
 </Steps>
 
-### Method 3: Install via Python Package
+## Optional Modules
 
-If you're using pip to manage Odoo modules:
+Depending on your business needs, install additional modules:
+
+### Stock Request Purchase
+
+Enables automatic purchase order creation when stock is not available.
 
 ```bash
-pip install odoo-addon-stock-request
+# Module: stock_request_purchase
 ```
 
-<Note>
-After pip installation, you still need to install the module through the Odoo Apps interface.
-</Note>
+<Accordion title="Features added">
+  - Automatic PO creation from stock requests
+  - Link between stock requests and purchase order lines
+  - Purchase request tracking
+  - Supplier selection based on product configuration
+</Accordion>
 
-## Verification Steps
+### Stock Request MRP
 
-After installation, verify that the module is working correctly:
+Integrates with Manufacturing to create production orders.
+
+```bash
+# Module: stock_request_mrp
+```
+
+<Accordion title="Features added">
+  - Automatic MO creation for manufactured products
+  - Bill of Materials integration
+  - Component availability checking
+  - Production request tracking
+</Accordion>
+
+### Stock Request Tier Validation
+
+Adds multi-level approval workflows.
+
+```bash
+# Module: stock_request_tier_validation
+# Depends on: base_tier_validation
+```
+
+<Accordion title="Features added">
+  - Multi-tier approval configuration
+  - Approval status tracking
+  - Email notifications for approvers
+  - Rejection with comments
+</Accordion>
+
+### Stock Request Kanban
+
+Enhances order management with better organization.
+
+```bash
+# Module: stock_request_kanban
+```
+
+<Accordion title="Features added">
+  - Stock Request Order model always enabled
+  - Kanban view for orders
+  - Bulk operations on requests
+  - Order-level tracking
+</Accordion>
+
+## Post-Installation Configuration
+
+### Activate Developer Mode
+
+To access advanced settings:
+
+<CodeGroup>
+  ```bash Terminal
+  # Method 1: URL parameter
+  # Add ?debug=1 to your URL
+  http://localhost:8069/web?debug=1
+  ```
+
+  ```python Python (config)
+  # Method 2: Settings menu
+  # Go to Settings > Activate Developer Mode
+  ```
+</CodeGroup>
+
+### Update Module List
+
+After adding the module to your addons path:
 
 <Steps>
-  <Step title="Check Menu Items">
-    Navigate to your main Odoo menu. You should see a new **Stock Requests** menu item.
+  <Step title="Activate Developer Mode">
+    Settings → Activate Developer Mode
   </Step>
-  
-  <Step title="Verify Access to Settings">
-    Go to **Stock Requests → Configuration → Settings** to confirm the module settings page loads.
+
+  <Step title="Update Apps List">
+    Apps → Update Apps List
   </Step>
-  
-  <Step title="Check User Groups">
-    Go to **Settings → Users & Companies → Groups** and search for:
-    - Stock Request / User
-    - Stock Request / Manager
-    
-    These groups should be available.
-  </Step>
-  
-  <Step title="Test Creating a Request">
-    Go to **Stock Requests → Stock Requests** and click **Create**. If the form opens successfully, the installation is complete.
+
+  <Step title="Search and Install">
+    Search for "Stock Request" and install
   </Step>
 </Steps>
 
-## Module Information
+## Database Initialization
 
-### Version Information
+The module automatically creates:
 
-- **Module Name**: `stock_request`
-- **Version**: 18.0.1.1.3
-- **License**: LGPL-3.0
-- **Category**: Warehouse Management
-- **Authors**: ForgeFlow, Odoo Community Association (OCA)
-- **Maintainers**: LoisRForgeFlow, etobella
+### Sequences
 
-### Installed Components
+- Stock Request sequence: `SR/XXXXX`
+- Stock Request Order sequence: `SRO/XXXXX`
 
-The module installs the following components:
+### Security Groups
+
+- **Stock Request / User**: Basic user access
+- **Stock Request / Manager**: Full management access
+- **Stock Request Order**: Hidden group for order functionality
+
+### Record Rules
+
+- Users can only see their own requests (unless granted access)
+- Managers can see all requests
+- Multi-company rules applied automatically
+
+## Verification
+
+### Check Installation Status
 
 <CodeGroup>
-```xml Security Groups
-<!-- From security/stock_request_security.xml -->
-- Stock Request / User
-- Stock Request / Manager  
-- Stock Request Order (hidden group)
-```
+  ```python Python Shell
+  # Connect to Odoo shell
+  odoo-bin shell -c /path/to/odoo.conf -d your_database
+  
+  # Check if module is installed
+  module = env['ir.module.module'].search([('name', '=', 'stock_request')])
+  print(f"Module state: {module.state}")
+  # Expected output: Module state: installed
+  ```
 
-```xml Views
-<!-- From __manifest__.py data section -->
-- Product views (stock request integration)
-- Stock Request views (list, form, search)
-- Stock Request Allocation views
-- Stock Move views (enhanced)
-- Stock Picking views (enhanced)
-- Stock Request Order views
-- Settings configuration views
-```
-
-```xml Data
-<!-- Sequences -->
-- Stock Request sequence (SR001, SR002, etc.)
-```
+  ```sql SQL
+  -- Check in database
+  SELECT name, state 
+  FROM ir_module_module 
+  WHERE name LIKE 'stock_request%';
+  ```
 </CodeGroup>
+
+### Test Basic Functionality
+
+<Steps>
+  <Step title="Navigate to Stock Requests">
+    Main menu → Stock Requests → Stock Requests
+  </Step>
+
+  <Step title="Create a test request">
+    Click **New** and fill in:
+    - Product: Any stockable product
+    - Quantity: 1.0
+    - Location: Any internal location
+  </Step>
+
+  <Step title="Save the request">
+    Click **Save** - the request should receive a sequence number (e.g., SR/00001)
+  </Step>
+
+  <Step title="Check state">
+    The request should be in **Draft** state
+  </Step>
+</Steps>
 
 ## Troubleshooting
 
-### Module Not Appearing in Apps List
+<AccordionGroup>
+  <Accordion title="Module not visible in Apps list">
+    **Solution:**
+    1. Ensure the module path is correctly added to `odoo.conf`
+    2. Restart the Odoo service
+    3. Update the Apps list (Developer Mode required)
+    4. Remove the "Apps" filter when searching
+  </Accordion>
 
-1. Ensure Developer Mode is activated
-2. Click "Update Apps List" 
-3. Check that the module files are in your addons path
-4. Verify file permissions (should be readable by the Odoo user)
+  <Accordion title="Installation fails with dependency error">
+    **Solution:**
+    1. Ensure the `stock` module is installed
+    2. Check your Odoo version matches the module branch
+    3. Update to the latest commit:
+       ```bash
+       cd stock-logistics-request
+       git pull origin 18.0
+       ```
+  </Accordion>
 
-### Installation Fails with Dependency Error
+  <Accordion title="No menu items appear after installation">
+    **Solution:**
+    1. Clear your browser cache
+    2. Log out and log back in
+    3. Check user permissions: Settings → Users & Companies → Users
+    4. Ensure the user is assigned to "Stock Request / User" or "Stock Request / Manager" group
+  </Accordion>
+
+  <Accordion title="Permission errors when creating requests">
+    **Solution:**
+    1. Go to Settings → Users & Companies → Users
+    2. Edit the user
+    3. Under "Inventory" tab, add "Stock Request / User" group
+    4. Save and refresh
+  </Accordion>
+</AccordionGroup>
+
+## Upgrade Notes
+
+### Migrating from Previous Versions
 
 <Warning>
-If you see an error about missing dependencies, ensure the `stock` module is installed first:
-
-```bash
-# Check installed modules
-./odoo-bin shell -d your_database
->>> self.env['ir.module.module'].search([('name','=','stock')])
-```
+Always backup your database before upgrading modules!
 </Warning>
 
-### Permission Denied Errors
+<Steps>
+  <Step title="Backup your database">
+    ```bash
+    pg_dump your_database > backup_$(date +%Y%m%d).sql
+    ```
+  </Step>
 
-Ensure the Odoo system user has read/write permissions on the module directory:
+  <Step title="Update the repository">
+    ```bash
+    cd stock-logistics-request
+    git fetch origin
+    git checkout 18.0
+    git pull
+    ```
+  </Step>
 
-```bash
-sudo chown -R odoo:odoo /path/to/addons/stock-logistics-request
-sudo chmod -R 755 /path/to/addons/stock-logistics-request
-```
+  <Step title="Upgrade the module">
+    ```bash
+    odoo-bin -c /path/to/odoo.conf -d your_database -u stock_request
+    ```
+  </Step>
+
+  <Step title="Test the upgrade">
+    1. Check existing stock requests still load
+    2. Create a new test request
+    3. Confirm a request and verify procurement works
+  </Step>
+</Steps>
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="Configuration" icon="gear" href="/configuration">
-    Configure user permissions and module settings
+    Configure routes, warehouses, and user permissions
   </Card>
   
-  <Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
     Create your first stock request
   </Card>
 </CardGroup>

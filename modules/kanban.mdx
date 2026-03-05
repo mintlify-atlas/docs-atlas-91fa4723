@@ -1,204 +1,479 @@
 ---
 title: Stock Request Kanban
-description: Lean kanban card system for reordering products with barcode scanning support
+description: Lean kanban card system for reordering products with barcode scanning
 ---
 
-The Stock Request Kanban module enables a lean kanban card system for products that need frequent reordering but cannot use traditional reordering rules. It's ideal for consumables and products with putaway rules.
+The `stock_request_kanban` module implements a lean kanban system for stock requests, allowing companies to manage consumable products and items without traditional reordering rules through scannable kanban cards.
 
 ## Overview
 
-On most companies there are products that must be purchased often but cannot be stored as a usual product because no consumption moves are made. This module allows using stock requests as reordering rules for these products, following the concept of lean kanban cards.
+**Module Name**: `stock_request_kanban`  
+**Version**: 18.0.1.0.1  
+**License**: LGPL-3  
+**Dependencies**: `stock_request`, `barcodes`  
+**Author**: Creu Blanca, ForgeFlow, OCA  
+**Maintainers**: [@etobella](https://github.com/etobella), [@LoisRForgeFlow](https://github.com/LoisRForgeFlow)
+
+<Info>
+This module enables companies to use stock requests as reordering rules for products that cannot be stored traditionally or don't have consumption tracking, following the lean kanban methodology.
+</Info>
 
 ## Key Features
 
-- **Kanban Card System**: Create physical or digital kanban cards for products
-- **Barcode Integration**: Scan kanban cards to create stock requests
-- **Batch Processing**: Collect multiple cards and process them together
-- **QR Code Support**: Generate printable kanban cards with QR codes
-- **Stock Request Orders**: Organize kanbans into orders
-- **Inventory Kanban**: Manage kanban card inventory
+### Kanban Card Management
 
-## Dependencies
+- Create printable kanban cards with QR/barcode
+- Configure kanban parameters per product and location
+- Print cards with product and location information
+- Scan cards to create stock requests instantly
 
-```python
-"depends": ["stock_request", "barcodes"]
-```
+### Barcode Integration
 
-<Note>
-This module requires the core `stock_request` module and the `barcodes` module for scanning functionality.
-</Note>
+- QR code generation with configurable format
+- Barcode scanning for quick request creation
+- CRC check digit support (optional)
+- Configurable barcode format via system parameters
+
+### Request Creation Methods
+
+<Accordion title="Single Card Ordering">
+Scan individual kanban cards as products are consumed to immediately create stock requests.
+
+**Use Case**: Immediate replenishment when product runs out.
+
+**Workflow**:
+1. Product consumed, take kanban card
+2. Go to **Stock Requests > Order Kanban Card**
+3. Scan the card
+4. Stock request created automatically
+</Accordion>
+
+<Accordion title="Batch Card Ordering">
+Collect multiple kanban cards throughout a period and process them together in a stock request order.
+
+**Use Case**: Scheduled replenishment runs (daily, weekly).
+
+**Workflow**:
+1. Collect consumed kanban cards in collection box
+2. Create a stock request order
+3. Click **Scan** button in order
+4. Scan all collected cards
+5. Request order with all items created
+</Accordion>
+
+### Inventory Kanban
+
+- Scan kanban cards during inventory
+- Track kanban-managed products separately
+- Reconcile physical kanban cards with system
 
 ## Installation
 
-1. Ensure `stock_request` and `barcodes` modules are installed
-2. Install `stock_request_kanban` from the Apps menu
-3. Update the module list if needed
+<Steps>
+  <Step title="Install Dependencies">
+    Ensure `stock_request` and `barcodes` modules are installed.
+  </Step>
+  
+  <Step title="Install Module">
+    Navigate to **Apps**, search for "Stock Request kanban", and click **Install**.
+  </Step>
+  
+  <Step title="Configure Barcode Settings">
+    Set system parameters for barcode format if needed (see Configuration section).
+  </Step>
+</Steps>
 
 ## Configuration
 
-### Barcode Format Settings
+### Product Configuration
 
-The module supports various barcode format configurations via system parameters.
+<Steps>
+  <Step title="Navigate to Product">
+    Go to **Inventory > Products > Products** and select a product.
+  </Step>
+  
+  <Step title="Enable Kanban">
+    In the **Inventory** tab, configure kanban settings:
+    - Check **Use Kanban for Stock Requests**
+    - Set default kanban quantity
+    - Configure kanban locations
+  </Step>
+  
+  <Step title="Create Kanban Cards">
+    Use the **Create Kanban Card** button to generate cards for specific locations.
+  </Step>
+</Steps>
 
-#### Disable CRC Check Digit
+### Barcode Configuration
 
-If your barcode does not contain a CRC check digit:
+#### CRC Check Digit
 
-1. Enable **Development mode**
-2. Go to **Settings > Technical > Parameters > System Parameters**
-3. Create a parameter:
-   - **Key**: `stock_request_kanban.crc`
-   - **Value**: `0`
+If your barcodes don't include a CRC check digit:
+
+<Steps>
+  <Step title="Enable Developer Mode">
+    Go to **Settings > Activate Developer Mode**.
+  </Step>
+  
+  <Step title="Create System Parameter">
+    Navigate to **Settings > Technical > Parameters > System Parameters**.
+  </Step>
+  
+  <Step title="Add CRC Parameter">
+    Create parameter:
+    - **Key**: `stock_request_kanban.crc`
+    - **Value**: `0`
+  </Step>
+</Steps>
 
 #### Ignore CRC Check Digit
 
-If you want to ignore an existing CRC check digit:
+If your barcodes have CRC but you want to ignore it:
 
-1. Enable **Development mode**
-2. Go to **Settings > Technical > Parameters > System Parameters**
-3. Create a parameter:
-   - **Key**: `stock_request_kanban.ignore_crc`
-   - **Value**: `1`
+- **Key**: `stock_request_kanban.ignore_crc`
+- **Value**: `1`
 
 #### Custom Barcode Format
 
-To change the QR code format:
+To customize the barcode format:
 
-1. Enable **Development mode**
-2. Go to **Settings > Technical > Parameters > System Parameters**
-3. Create a parameter:
-   - **Key**: `stock_request_kanban.barcode_format`
-   - **Value**: Your custom format string
+- **Key**: `stock_request_kanban.barcode_format`
+- **Value**: Your custom format string
+
+<Note>
+The default barcode format encodes the kanban card ID in a scannable format suitable for quick processing.
+</Note>
 
 ## Usage
 
 ### Creating Kanban Cards
 
-1. Navigate to **Stock Requests > Stock Requests Kanban**
-2. Click **Create**
-3. Fill in the required information:
-   - **Product**: Select the product
-   - **Quantity**: Enter the standard reorder quantity
-   - **Location**: Choose the destination location
-4. Click **Save**
-5. Click **Print** to generate the physical kanban card
-6. Place the printed card in the product storage location
+<Steps>
+  <Step title="Navigate to Kanban Cards">
+    Go to **Stock Requests > Stock Requests Kanban**.
+  </Step>
+  
+  <Step title="Create New Card">
+    Click **Create** and fill in:
+    - **Product**: Select the product
+    - **Quantity**: Reorder quantity
+    - **Location**: Destination location
+    - **Warehouse**: Source warehouse
+  </Step>
+  
+  <Step title="Save and Print">
+    Click **Save**, then **Print** to generate the kanban card with barcode.
+  </Step>
+  
+  <Step title="Attach to Storage">
+    Place the printed card with the product storage location.
+  </Step>
+</Steps>
 
-<Info>
-The kanban card should be visible and accessible at the product storage location for easy scanning when stock is consumed.
-</Info>
+### Ordering Single Kanban Card
 
-### Request Kanban (Individual Cards)
+<Steps>
+  <Step title="Take Card">
+    When product is consumed, take the kanban card.
+  </Step>
+  
+  <Step title="Scan Card">
+    Go to **Stock Requests > Order Kanban Card** and scan the barcode.
+  </Step>
+  
+  <Step title="Request Created">
+    Stock request is automatically created with card parameters.
+  </Step>
+  
+  <Step title="Return Card">
+    After replenishment, return the card to storage location.
+  </Step>
+</Steps>
 
-Use this method when creating requests immediately upon consumption:
+### Batch Ordering Kanban Cards
 
-1. When the product is consumed, take the kanban card
-2. Go to **Stock Requests > Order Kanban Card**
-3. Scan the card using a barcode scanner
-4. The stock request is automatically created
+<Steps>
+  <Step title="Collect Cards">
+    Throughout the period, collect consumed kanban cards in a designated box.
+  </Step>
+  
+  <Step title="Create Request Order">
+    Go to **Stock Requests > Stock Request Orders** and click **Create**.
+  </Step>
+  
+  <Step title="Scan Mode">
+    Click the **Scan** button to enter scanning mode.
+  </Step>
+  
+  <Step title="Scan All Cards">
+    Scan each collected kanban card. Request lines are added automatically.
+  </Step>
+  
+  <Step title="Confirm Order">
+    Review the order and click **Confirm** to process all requests.
+  </Step>
+</Steps>
 
-<Note>
-This is ideal for just-in-time replenishment workflows where immediate action is needed.
-</Note>
+### Inventory Kanban
 
-### Request Kanban Batch
+Take inventory of kanban-managed products:
 
-Use this method for collecting and processing multiple cards together:
+<Steps>
+  <Step title="Navigate to Inventory Kanban">
+    Go to **Stock Requests > Inventory Kanban**.
+  </Step>
+  
+  <Step title="Create Inventory">
+    Click **Create** and select location.
+  </Step>
+  
+  <Step title="Scan Cards">
+    Use scanner to scan all kanban cards in the location.
+  </Step>
+  
+  <Step title="Reconcile">
+    System compares scanned cards with expected kanban cards.
+  </Step>
+</Steps>
 
-1. When products are consumed, collect the kanban cards in a designated location
-2. Go to **Stock Requests > Stock Request Orders**
-3. Create a new Stock Request Order
-4. Click the **Scan** button
-5. Scan all collected kanban cards
-6. Review and confirm the order
+## Data Models
 
-<Info>
-Batch processing is efficient for scheduled replenishment runs (e.g., daily or weekly).
-</Info>
+### Stock Request Kanban (`stock.request.kanban`)
 
-### Workflow Comparison
+```python
+name: Char                    # Kanban card reference
+product_id: Many2one          # Product on card
+product_qty: Float            # Reorder quantity
+location_id: Many2one         # Destination location
+warehouse_id: Many2one        # Source warehouse
+barcode: Char                 # Generated barcode
+state: Selection              # Active, archived
+request_ids: One2many         # Created requests
+```
 
-| Method | When to Use | Benefits |
-|--------|-------------|----------|
-| **Individual Request** | Immediate replenishment needed | Quick, real-time processing |
-| **Batch Request** | Scheduled replenishment | Efficient for multiple items, better planning |
+### Stock Request Order (Extended)
 
-## Technical Details
+Adds scanning capability:
 
-### Module Information
+```python
+kanban_scan_mode: Boolean     # Scanning active
+scanned_kanban_ids: Many2many # Scanned cards in session
+```
 
-- **Technical Name**: `stock_request_kanban`
-- **Version**: 18.0.1.0.1
-- **License**: LGPL-3
-- **Category**: Warehouse Management
-- **Authors**: Creu Blanca, ForgeFlow, OCA
-- **Maintainers**: etobella, LoisRForgeFlow
+## Wizards
 
-### Included Views and Reports
+### Order Kanban Card Wizard
 
-- Kanban card views and forms
-- Barcode scanning wizards
-- Printable kanban card reports (QR codes)
-- Stock request order views with kanban integration
-- Product views with kanban configuration
+**Model**: `wizard.stock.request.kanban`  
+**Purpose**: Scan single kanban card to create request
 
-## Kanban Card Design
+```python
+barcode: Char                 # Scanned barcode
+# Creates stock.request on validation
+```
 
-The module includes a report template for printing kanban cards:
+### Order Kanban Card (Order) Wizard
 
-- QR code or barcode representation
-- Product information
-- Quantity information
-- Location details
-- Custom paper format support
+**Model**: `wizard.stock.request.order.kanban`  
+**Purpose**: Scan multiple cards into request order
 
-<Warning>
-Ensure your barcode scanners are properly configured to read the QR code format used by the module.
-</Warning>
+```python
+order_id: Many2one            # Target order
+barcode: Char                 # Current scan
+scan_mode: Boolean            # Scanner active
+# Adds lines to order for each scan
+```
+
+### Inventory Kanban Wizard
+
+**Model**: `wizard.stock.inventory.kanban`  
+**Purpose**: Inventory reconciliation via scanning
+
+```python
+location_id: Many2one         # Location to inventory
+scanned_barcodes: Text        # All scanned codes
+# Compares with expected kanban cards
+```
+
+## Reports
+
+### Kanban Card Report
+
+**Template**: `stock_request_kanban_templates.xml`
+
+Printable kanban card includes:
+- Product name and code
+- Kanban quantity
+- Destination location
+- Source warehouse
+- QR/Barcode for scanning
+- Kanban card reference number
+
+**Paper Format**: Custom format defined in `report_paper_format.xml`
+
+<Tip>
+Kanban cards should be printed on durable material and laminated for longevity in warehouse environments.
+</Tip>
 
 ## Best Practices
 
-### Card Placement
+### Card Design
 
-- Place cards in visible, easily accessible locations
-- Attach cards to product bins or storage containers
-- Use weather-resistant card holders if needed
+<Tip>
+**Visibility**: Ensure printed cards are large enough to read product information without scanning.
+</Tip>
 
-### Process Design
+<Tip>
+**Durability**: Use waterproof/tear-resistant material for cards in industrial settings.
+</Tip>
 
-- Define clear collection points for used kanban cards
-- Establish regular scanning schedules for batch processing
-- Train staff on proper card handling and scanning procedures
+<Tip>
+**Color Coding**: Consider using colored paper to categorize products (e.g., red for critical items).
+</Tip>
 
-### Quantity Optimization
+### Implementation Strategy
 
-- Set kanban quantities based on lead times and consumption rates
-- Review and adjust quantities periodically
-- Consider creating multiple cards for high-consumption items
+<Steps>
+  <Step title="Start Small">
+    Pilot kanban system with a few high-consumption products first.
+  </Step>
+  
+  <Step title="Train Users">
+    Ensure warehouse staff understand the kanban concept and scanning process.
+  </Step>
+  
+  <Step title="Set Correct Quantities">
+    Calculate kanban quantities based on consumption rate and lead time.
+  </Step>
+  
+  <Step title="Monitor and Adjust">
+    Review kanban performance and adjust quantities as needed.
+  </Step>
+</Steps>
+
+### Quantity Calculation
+
+Determine optimal kanban quantity:
+
+```
+Kanban Quantity = (Daily Consumption × Lead Time) + Safety Stock
+```
+
+**Example**:
+- Daily consumption: 50 units
+- Replenishment lead time: 2 days
+- Safety stock: 20%
+- Kanban quantity: (50 × 2) × 1.2 = 120 units
+
+## Use Cases
+
+### Consumable Products
+
+**Scenario**: Office supplies, cleaning materials, shop floor consumables
+
+**Challenge**: No consumption moves recorded, can't use reordering rules
+
+**Solution**: Kanban cards provide visual trigger for replenishment
+
+### MRO (Maintenance, Repair, Operations)
+
+**Scenario**: Spare parts, fasteners, maintenance supplies
+
+**Challenge**: Irregular consumption, difficult to forecast
+
+**Solution**: Pull-based system ensures availability without overstocking
+
+### Production Components
+
+**Scenario**: Components consumed directly at workstations
+
+**Challenge**: Tracking consumption is impractical
+
+**Solution**: Kanban signals when to replenish workstation inventory
+
+## Technical Details
+
+### Barcode Format
+
+Default barcode encoding:
+
+```python
+# Kanban ID encoded in barcode
+barcode = "KAN{:010d}".format(kanban_id)
+# Example: KAN0000000123
+```
+
+With CRC check digit:
+
+```python
+# CRC-8 check digit appended
+barcode_with_crc = barcode + calculate_crc(barcode)
+```
+
+### Views and Menus
+
+```
+Stock Requests
+├── Stock Requests Kanban
+│   ├── Kanban Cards (List)
+│   ├── Order Kanban Card (Wizard)
+│   └── Order Kanban Batch (via Order)
+├── Stock Request Orders
+│   └── (Scan button available)
+└── Inventory Kanban
+```
+
+### Security
+
+Defined in `security/ir.model.access.csv`:
+
+- Stock Request User: Can create and scan kanban cards
+- Stock Request Manager: Full kanban management access
+
+## Troubleshooting
+
+### Barcode Not Scanning
+
+**Problem**: Scanner doesn't recognize kanban barcode.  
+**Solution**: 
+- Check system parameters for CRC settings
+- Verify barcode format matches scanner configuration
+- Test with manual barcode entry
+
+### Wrong Product Requested
+
+**Problem**: Scanning card creates request for wrong product.  
+**Solution**:
+- Verify kanban card data in system
+- Check if card reference matches scanned code
+- Ensure barcode printed correctly
+
+### Duplicate Requests
+
+**Problem**: Scanning same card multiple times.  
+**Solution**:
+- Implement card collection process
+- Train users to scan each card only once
+- Use batch ordering to review before confirmation
 
 ## Integration with Other Modules
 
 <CardGroup cols={2}>
-  <Card title="Stock Request Core" icon="box" href="/modules/core">
-    Base functionality for stock requests
+  <Card title="Stock Request Purchase" icon="shopping-cart" href="/modules/purchase">
+    Kanban requests can trigger automatic purchase orders
   </Card>
   
-  <Card title="Purchase Integration" icon="shopping-cart" href="/modules/purchase">
-    Automatically generate POs from kanban requests
-  </Card>
-  
-  <Card title="MRP Integration" icon="industry" href="/modules/mrp">
-    Generate manufacturing orders from kanban cards
+  <Card title="Stock Request MRP" icon="industry" href="/modules/mrp">
+    Kanban cards can initiate manufacturing orders
   </Card>
 </CardGroup>
 
-## Support
+<Note>
+Kanban module works seamlessly with procurement integration modules to automatically fulfill requests based on routing rules.
+</Note>
 
-For issues and feature requests:
+## Related Resources
 
-- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
-- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_kanban)
-
-<Info>
-Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
-</Info>
+- [Lean Manufacturing and Kanban Systems](https://en.wikipedia.org/wiki/Kanban)
+- [Setting Up Reordering Rules in Odoo](https://www.odoo.com/documentation)
+- OCA Repository: [stock-logistics-request](https://github.com/OCA/stock-logistics-request)

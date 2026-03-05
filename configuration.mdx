@@ -1,339 +1,629 @@
 ---
 title: Configuration
-description: Configure the Stock Request module and user permissions
+description: Complete guide to configuring the Stock Request framework, including routes, rules, user permissions, and settings
 ---
 
-After installing the Stock Request module, you need to configure user permissions and module settings to start using it effectively.
+## Initial Configuration
 
-## User Permissions
+After installing the Stock Request module, you need to configure several components to make it work effectively in your environment.
 
-The Stock Request module provides two user groups with different permission levels.
+## User Access Configuration
 
-### Stock Request / User
+### Assign Security Groups
 
-Users in this group have limited permissions:
-
-- **View**: Can see their own stock requests and requests they're following
-- **Create**: Can create new stock requests
-- **Update**: Can modify only their own stock requests
-- **Delete**: Can delete only their own stock requests (in draft state)
-
-<Note>
-Users can also see requests where they've been added as followers, even if they didn't create them.
-</Note>
-
-### Stock Request / Manager
-
-Managers have full control over all stock requests:
-
-- **View**: Can see all stock requests in the system
-- **Create**: Can create stock requests for any user
-- **Update**: Can modify any stock request
-- **Delete**: Can delete any stock request (in draft state)
-- **Manage**: Full administrative access to all stock request operations
-
-<Warning>
-The Stock Request / Manager group automatically inherits Stock Request / User and Stock / User permissions.
-</Warning>
-
-## Assigning User Permissions
+The Stock Request framework provides two main security groups:
 
 <Steps>
-  <Step title="Navigate to Users">
-    Go to **Settings → Users & Companies → Users**.
+  <Step title="Navigate to Users & Companies">
+    Settings → Users & Companies → Users
   </Step>
-  
-  <Step title="Select a User">
-    Click on the user you want to configure.
+
+  <Step title="Select a user to configure">
+    Click on the user you want to grant access to
   </Step>
-  
-  <Step title="Edit Access Rights">
-    Click **Edit** and scroll to the **Access Rights** tab.
-  </Step>
-  
-  <Step title="Assign Stock Request Group">
-    In the **Inventory** section, you'll find:
-    - **Stock Request / User** - For regular users who need to create requests
-    - **Stock Request / Manager** - For administrators who oversee all requests
+
+  <Step title="Assign appropriate group">
+    Scroll to the **Access Rights** tab and find the **Stock Request** section.
     
-    Select the appropriate level for this user.
+    Assign one of the following:
+    
+    <Tabs>
+      <Tab title="Stock Request User">
+        **Group:** `Stock Request / User`
+        
+        **Permissions:**
+        - Create and manage their own stock requests
+        - View stock requests they created
+        - View stock requests they're following (as message partners)
+        - Cannot modify others' requests
+        - Cannot access configuration settings
+        
+        **Use case:** Regular employees requesting stock for their department or workstation
+      </Tab>
+      
+      <Tab title="Stock Request Manager">
+        **Group:** `Stock Request / Manager`
+        
+        **Permissions:**
+        - Full access to all stock requests
+        - Create, modify, and delete any stock request
+        - Access configuration settings
+        - Automatically inherits Stock/User permissions
+        
+        **Use case:** Warehouse managers, inventory controllers, supervisors
+      </Tab>
+    </Tabs>
   </Step>
-  
-  <Step title="Save Changes">
-    Click **Save** to apply the changes. The user will have access based on their assigned group.
+
+  <Step title="Save the user">
+    Click **Save** to apply the changes
   </Step>
 </Steps>
-
-## Module Settings
-
-Configure module-wide settings to customize Stock Request behavior.
-
-### Accessing Settings
-
-<Steps>
-  <Step title="Open Stock Requests Menu">
-    Navigate to **Stock Requests** from the main menu.
-  </Step>
-  
-  <Step title="Go to Settings">
-    Click **Configuration → Settings** (or **Stock Requests → Settings** depending on your Odoo version).
-  </Step>
-</Steps>
-
-### Configuration Options
-
-#### Check Available Stock First
-
-When enabled, the system checks if stock is already available at the destination location before triggering procurement rules.
-
-<CodeGroup>
-```python Configuration Field
-# From res_company.py
-stock_request_check_available_first = fields.Boolean(
-    string="Check available stock first"
-)
-```
-
-```python How It Works
-# From stock_request.py:404-416
-if request.company_id.stock_request_check_available_first:
-    if (
-        float_compare(
-            request.product_id.sudo()
-            .with_context(location=request.location_id.id)
-            .free_qty,
-            request.product_uom_qty,
-            precision_digits=precision,
-        )
-        >= 0
-    ):
-        request._action_use_stock_available()
-        continue
-```
-</CodeGroup>
-
-**When to enable:**
-- You want to use existing stock before creating new transfers
-- You want to minimize unnecessary procurement operations
-- Your locations often have available stock that can fulfill requests
-
-**When to disable:**
-- You always want to trigger procurement rules regardless of available stock
-- You have specific routing requirements that shouldn't check availability
-
-<Tip>
-Enabling this option can significantly reduce unnecessary purchase orders or manufacturing orders when stock is already available.
-</Tip>
-
-#### Allow Virtual Locations
-
-Controls whether users can select virtual locations (like vendor locations, customer locations, or inventory adjustments) as destination locations.
-
-<CodeGroup>
-```python Configuration Field  
-# From res_company.py
-stock_request_allow_virtual_loc = fields.Boolean(
-    string="Allow Virtual locations on Stock Requests"
-)
-```
-
-```python Field Usage
-# From stock_request_abstract.py:48-54
-location_id = fields.Many2one(
-    comodel_name="stock.location",
-    string="Location",
-    domain="not allow_virtual_location and "
-    "[('usage', 'in', ['internal', 'transit'])] or []",
-    ondelete="cascade",
-    required=True,
-)
-```
-</CodeGroup>
-
-**When to enable:**
-- You need to request stock to vendor or customer locations
-- You're using advanced location strategies
-- You want flexibility in destination location types
-
-**When to disable (recommended):**
-- You only want internal warehouse transfers
-- You want to prevent accidental requests to virtual locations
-
-<Warning>
-Enabling virtual locations requires the **Multi-Locations** feature to be activated. The system will automatically enable it when you activate virtual locations.
-</Warning>
-
-#### Stock Request Order
-
-Enable the ability to group multiple stock requests into orders.
-
-```python
-# From res_config_settings.py:10-12
-group_stock_request_order = fields.Boolean(
-    implied_group="stock_request.group_stock_request_order"
-)
-```
-
-**Benefits of Stock Request Orders:**
-- Group related requests together
-- Manage multiple products in a single request
-- Unified procurement group for all items
-- Better organization for large requests
-
-### Optional Module Integrations
-
-The settings page also allows you to enable optional integrations:
-
-<CodeGroup>
-```python Purchase Integration
-# From res_config_settings.py:14-16
-module_stock_request_purchase = fields.Boolean(
-    string="Stock Requests for Purchases"
-)
-```
-
-```python Kanban Integration
-# From res_config_settings.py:18-20  
-module_stock_request_kanban = fields.Boolean(
-    string="Stock Requests Kanban integration"
-)
-```
-
-```python Manufacturing Integration
-# From res_config_settings.py:37
-module_stock_request_mrp = fields.Boolean(
-    string="Stock Request for Manufacturing"
-)
-```
-
-```python Analytic Integration
-# From res_config_settings.py:29-31
-module_stock_request_analytic = fields.Boolean(
-    string="Stock Requests Analytic integration"  
-)
-```
-
-```python Submit State
-# From res_config_settings.py:33-35
-module_stock_request_submit = fields.Boolean(
-    string="Submitted state in Stock Requests"
-)
-```
-</CodeGroup>
-
-## Company-Specific Settings
 
 <Note>
-All Stock Request settings are company-specific. In a multi-company environment, configure settings separately for each company.
+Users must also have appropriate stock/inventory permissions to view and manage transfers created by stock requests.
 </Note>
 
-### Configuring Multi-Company Settings
+## Company Settings
+
+Configure company-level settings that affect how stock requests behave.
 
 <Steps>
-  <Step title="Switch Company">
-    Use the company switcher in the top-right corner to select the company you want to configure.
+  <Step title="Navigate to Stock Request Settings">
+    Go to **Settings** → **Inventory** section, or navigate via:
+    
+    Stock Requests → Configuration → Settings
   </Step>
-  
-  <Step title="Access Settings">
-    Navigate to **Stock Requests → Settings**.
+
+  <Step title="Configure available stock checking">
+    ### Check Available Stock First
+    
+    Enable this option to check if products are available in stock before running procurement rules.
+    
+    ```python
+    # Field: stock_request_check_available_first
+    # Model: res.company
+    company.stock_request_check_available_first = True
+    ```
+    
+    <Accordion title="How it works">
+      When enabled:
+      1. System checks if requested product is available in the destination location
+      2. If `free_qty >= requested_qty`, creates an internal transfer immediately
+      3. Marks the stock as reserved and moves it
+      4. Skips procurement rules entirely
+      
+      When disabled:
+      - Always runs procurement rules regardless of available stock
+      - Useful when you want to trigger specific routes even if stock exists
+    </Accordion>
   </Step>
-  
-  <Step title="Configure Options">
-    Set the configuration options for the selected company.
+
+  <Step title="Configure virtual locations">
+    ### Allow Virtual Locations
+    
+    Enable this to allow stock requests to be made for virtual locations (e.g., customer locations, vendor locations).
+    
+    ```python
+    # Field: stock_request_allow_virtual_loc
+    # Model: res.company
+    company.stock_request_allow_virtual_loc = True
+    ```
+    
+    <Warning>
+    Virtual locations are typically used for special use cases. Most implementations should keep this disabled and only use internal/transit locations.
+    </Warning>
   </Step>
-  
-  <Step title="Repeat for Other Companies">
-    Switch to another company and repeat the process.
+
+  <Step title="Enable Stock Request Orders (Optional)">
+    ### Stock Request Order
+    
+    Enable this to activate the Stock Request Order functionality, allowing users to group multiple requests.
+    
+    ```python
+    # Field: group_stock_request_order
+    # Model: res.config.settings
+    settings.group_stock_request_order = True
+    ```
+    
+    <Info>
+    This is automatically enabled if you install the `stock_request_kanban` module.
+    </Info>
   </Step>
 </Steps>
 
 ## Warehouse Configuration
 
-Ensure your warehouses are properly configured for stock requests:
+### Configure Stock Routes
 
-### Default Warehouse
+Stock Requests use Odoo's routing system to determine how to fulfill requests.
+
+<Steps>
+  <Step title="Access Routes configuration">
+    Inventory → Configuration → Routes
+  </Step>
+
+  <Step title="Create or modify routes">
+    Create a new route or modify existing ones to work with Stock Requests.
+    
+    **Example: Internal Replenishment Route**
+    
+    <CodeGroup>
+      ```python Python
+      route = env['stock.route'].create({
+          'name': 'Replenishment from Central Warehouse',
+          'warehouse_ids': [(4, warehouse.id)],
+          'sequence': 10,
+      })
+      ```
+      
+      ```xml XML View
+      <record id="route_replenishment" model="stock.route">
+          <field name="name">Replenishment from Central Warehouse</field>
+          <field name="sequence">10</field>
+          <field name="warehouse_selectable" eval="True"/>
+      </record>
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Configure route rules">
+    Add rules to the route that define the source and destination.
+    
+    ```python
+    rule = env['stock.rule'].create({
+        'name': 'Transfer from Central to Production',
+        'route_id': route.id,
+        'location_src_id': central_location.id,  # Source: Central warehouse
+        'location_dest_id': production_location.id,  # Destination: Production floor
+        'action': 'pull',
+        'picking_type_id': warehouse.int_type_id.id,  # Internal transfer type
+        'procure_method': 'make_to_stock',
+        'warehouse_id': warehouse.id,
+        'company_id': company.id,
+    })
+    ```
+    
+    <Accordion title="Rule field explanations">
+      - **location_src_id**: Where to pull stock from
+      - **location_dest_id**: Where the stock request was made for
+      - **action**: Use 'pull' for transfers, 'buy' for purchases, 'manufacture' for MRP
+      - **picking_type_id**: The operation type to use (internal, incoming, outgoing)
+      - **procure_method**: 'make_to_stock' or 'make_to_order'
+    </Accordion>
+  </Step>
+
+  <Step title="Assign routes to products (optional)">
+    You can assign routes at the product level:
+    
+    Inventory → Products → [Select Product] → Inventory tab → Routes
+    
+    ```python
+    product.route_ids = [(4, route.id)]
+    ```
+  </Step>
+</Steps>
+
+## Procurement Rules Configuration
+
+### Understanding Rule Priority
+
+When a stock request is confirmed, Odoo evaluates rules in this order:
+
+1. **Product-specific routes** (if defined on the product)
+2. **Warehouse routes** (if the request specifies a warehouse)
+3. **Location-based routes** (rules with matching destination locations)
+
+<Note>
+Rules are evaluated from lowest to highest sequence number. The first matching rule is used.
+</Note>
+
+### Example: Multi-Stage Fulfillment
+
+Create a multi-stage fulfillment process:
 
 <CodeGroup>
-```python Default Warehouse Logic
-# From stock_request_abstract.py:14-24
-@api.model
-def default_get(self, fields):
-    res = super().default_get(fields)
-    warehouse = None
-    if "warehouse_id" not in res and res.get("company_id"):
-        warehouse = self.env["stock.warehouse"].search(
-            [("company_id", "=", res["company_id"])], limit=1
-        )
-    if warehouse:
-        res["warehouse_id"] = warehouse.id
-        res["location_id"] = warehouse.lot_stock_id.id
-    return res
-```
+  ```python Complete Example
+  # Scenario: Production floor requests from warehouse, 
+  # warehouse pulls from supplier if needed
+  
+  # Step 1: Create locations
+  central_wh = env.ref('stock.warehouse0').lot_stock_id
+  production_location = env['stock.location'].create({
+      'name': 'Production Floor',
+      'location_id': env.ref('stock.warehouse0').view_location_id.id,
+      'usage': 'internal',
+  })
+  
+  # Step 2: Create route for production requests
+  route = env['stock.route'].create({
+      'name': 'Production Replenishment',
+      'warehouse_ids': [(4, env.ref('stock.warehouse0').id)],
+  })
+  
+  # Step 3: Create rule to transfer from warehouse to production
+  env['stock.rule'].create({
+      'name': 'WH to Production',
+      'route_id': route.id,
+      'location_src_id': central_wh.id,
+      'location_dest_id': production_location.id,
+      'action': 'pull',
+      'picking_type_id': env.ref('stock.warehouse0').int_type_id.id,
+      'procure_method': 'make_to_stock',
+      'warehouse_id': env.ref('stock.warehouse0').id,
+  })
+  
+  # Step 4: Assign route to products that use this workflow
+  product = env['product.product'].search([('default_code', '=', 'RAW001')])
+  product.route_ids = [(4, route.id)]
+  ```
+
+  ```python With Purchase Integration
+  # If stock_request_purchase is installed, add buy rule
+  
+  # Create route that triggers purchase if not in stock
+  buy_route = env['stock.route'].create({
+      'name': 'Buy on Request',
+      'warehouse_ids': [(4, warehouse.id)],
+  })
+  
+  env['stock.rule'].create({
+      'name': 'Buy from Supplier',
+      'route_id': buy_route.id,
+      'location_dest_id': warehouse.lot_stock_id.id,
+      'action': 'buy',
+      'picking_type_id': warehouse.in_type_id.id,
+      'procure_method': 'make_to_order',
+      'warehouse_id': warehouse.id,
+  })
+  ```
 </CodeGroup>
 
-The system automatically selects the first warehouse for the current company when creating a stock request.
+## Sequence Configuration
 
-### Location Relationships
+Customize the sequence format for stock request numbers.
 
-When a user selects a warehouse, the default location is automatically set to the warehouse's stock location (`lot_stock_id`).
+<Steps>
+  <Step title="Navigate to Sequences">
+    Settings → Technical → Sequences & Identification → Sequences
+    
+    <Note>
+    You need Developer Mode enabled to access Technical menu.
+    </Note>
+  </Step>
 
-<Tip>
-Users can override the default location after selecting a warehouse, as long as the location belongs to that warehouse.
-</Tip>
+  <Step title="Find Stock Request sequences">
+    Search for:
+    - `stock.request` - For individual requests
+    - `stock.request.order` - For request orders
+  </Step>
 
-## Procurement Routes
+  <Step title="Customize the format">
+    Edit the sequence and modify:
+    
+    ```python
+    sequence = env['ir.sequence'].search([('code', '=', 'stock.request')])
+    sequence.write({
+        'prefix': 'REQ/%(year)s/',  # e.g., REQ/2026/00001
+        'padding': 5,  # Number of digits
+        'number_increment': 1,
+        'implementation': 'standard',
+    })
+    ```
+    
+    **Available placeholders:**
+    - `%(year)s` - Four digit year
+    - `%(month)s` - Two digit month  
+    - `%(day)s` - Two digit day
+    - `%(y)s` - Two digit year
+  </Step>
+</Steps>
 
-Stock requests use Odoo's procurement rules to determine how to fulfill requests. Ensure you have appropriate routes configured:
+## Integration Module Configuration
 
-1. **Reception in 1 step** - Direct receipt to stock
-2. **Reception in 2 steps** - Input → Stock  
-3. **Reception in 3 steps** - Input → Quality → Stock
+### Stock Request Purchase
 
-The stock request will follow the procurement rules configured for:
-- The product's routes
-- The product category's routes
-- The warehouse's routes
+If you installed `stock_request_purchase`:
 
-<CardGroup cols={2}>
-  <Card title="Route Configuration" icon="route">
-    Go to **Inventory → Configuration → Routes** to manage procurement routes.
-  </Card>
-  
-  <Card title="Product Routes" icon="box">
-    Configure product-specific routes in **Inventory → Products** → Select Product → **Inventory** tab.
-  </Card>
-</CardGroup>
+<Steps>
+  <Step title="Configure product suppliers">
+    Ensure products have suppliers defined:
+    
+    Inventory → Products → [Product] → Purchase tab → Vendors
+    
+    ```python
+    env['product.supplierinfo'].create({
+        'product_tmpl_id': product.product_tmpl_id.id,
+        'partner_id': supplier.id,
+        'price': 100.0,
+        'min_qty': 1.0,
+    })
+    ```
+  </Step>
+
+  <Step title="Set up buy routes">
+    Create or verify the "Buy" route exists and is configured:
+    
+    ```python
+    product.route_ids = [(4, env.ref('purchase_stock.route_warehouse0_buy').id)]
+    ```
+  </Step>
+
+  <Step title="Configure purchase settings">
+    Settings → Inventory → Operations
+    
+    Enable relevant purchase options like:
+    - Purchase Agreements
+    - Vendor Bills
+    - Purchase Order Approval
+  </Step>
+</Steps>
+
+### Stock Request MRP
+
+If you installed `stock_request_mrp`:
+
+<Steps>
+  <Step title="Configure Bills of Materials">
+    Ensure manufactured products have BOMs:
+    
+    Manufacturing → Products → Bills of Materials
+    
+    ```python
+    bom = env['mrp.bom'].create({
+        'product_tmpl_id': product.product_tmpl_id.id,
+        'product_qty': 1.0,
+        'type': 'normal',
+        'bom_line_ids': [(0, 0, {
+            'product_id': component.id,
+            'product_qty': 2.0,
+        })],
+    })
+    ```
+  </Step>
+
+  <Step title="Set manufacture routes">
+    Assign manufacture route to products:
+    
+    ```python
+    product.route_ids = [(4, env.ref('mrp.route_warehouse0_manufacture').id)]
+    ```
+  </Step>
+
+  <Step title="Configure manufacturing settings">
+    Settings → Manufacturing
+    
+    Enable relevant options:
+    - Work Orders
+    - Quality Control
+    - Maintenance
+  </Step>
+</Steps>
+
+### Stock Request Tier Validation
+
+If you installed `stock_request_tier_validation`:
+
+<Steps>
+  <Step title="Install base_tier_validation">
+    This module depends on `base_tier_validation`. Ensure it's installed.
+  </Step>
+
+  <Step title="Create tier definitions">
+    Settings → Technical → Tier Validations → Tier Definitions
+    
+    ```python
+    # Example: Require manager approval for requests > 1000 units
+    env['tier.definition'].create({
+        'model_id': env.ref('stock_request.model_stock_request').id,
+        'name': 'Manager Approval for Large Orders',
+        'review_type': 'individual',
+        'reviewer_id': manager.id,
+        'python_code': '''result = record.product_uom_qty > 1000''',
+        'sequence': 10,
+    })
+    ```
+  </Step>
+
+  <Step title="Configure notification settings">
+    Set up email templates for tier validation notifications:
+    
+    Settings → Technical → Email → Templates
+  </Step>
+</Steps>
+
+## Location Configuration
+
+### Create Destination Locations
+
+Set up locations where stock can be requested to:
+
+<Steps>
+  <Step title="Navigate to Locations">
+    Inventory → Configuration → Locations
+  </Step>
+
+  <Step title="Create new location">
+    ```python
+    location = env['stock.location'].create({
+        'name': 'Production Line A',
+        'location_id': warehouse.view_location_id.id,  # Parent location
+        'usage': 'internal',
+        'company_id': company.id,
+    })
+    ```
+    
+    <Accordion title="Location usage types">
+      - **internal**: Standard warehouse locations (use this for stock requests)
+      - **transit**: Temporary locations during transfers
+      - **view**: Organizational folders (cannot contain stock)
+      - **customer**: Virtual customer locations (requires special config)
+      - **supplier**: Virtual supplier locations (requires special config)
+      - **production**: Manufacturing consumption locations
+      - **inventory**: For inventory adjustments
+    </Accordion>
+  </Step>
+
+  <Step title="Configure location settings">
+    Set additional properties:
+    
+    - **Removal Strategy**: FIFO, LIFO, or FEFO
+    - **Storage Categories**: For specific storage requirements
+    - **Cyclic Counting**: For regular inventory counts
+  </Step>
+</Steps>
+
+## Procurement Group Configuration
+
+Configure how stock requests group related movements:
+
+```python
+# Create a procurement group for a project
+proc_group = env['procurement.group'].create({
+    'name': 'Project Alpha Materials',
+})
+
+# Use it in stock requests
+stock_request = env['stock.request'].create({
+    'product_id': product.id,
+    'product_uom_qty': 10.0,
+    'location_id': location.id,
+    'procurement_group_id': proc_group.id,
+    # ... other fields
+})
+```
+
+<Info>
+Procurement groups help organize all transfers, purchases, and manufacturing orders related to a specific project or purpose.
+</Info>
+
+## Advanced Configuration
+
+### Custom Procurement Values
+
+Extend the `_prepare_procurement_values` method to add custom data:
+
+```python
+from odoo import models
+
+class StockRequestCustom(models.Model):
+    _inherit = 'stock.request'
+    
+    def _prepare_procurement_values(self, group_id=False):
+        values = super()._prepare_procurement_values(group_id)
+        # Add custom values
+        values.update({
+            'priority': '1',  # Urgent
+            'partner_id': self.requested_by.partner_id.id,
+            # Add any custom fields your routes need
+        })
+        return values
+```
+
+### Multi-Company Configuration
+
+<Steps>
+  <Step title="Enable multi-company">
+    Settings → Users & Companies → Companies
+    
+    Ensure multiple companies are configured
+  </Step>
+
+  <Step title="Configure per-company settings">
+    Each company can have different settings:
+    
+    ```python
+    for company in env['res.company'].search([]):
+        company.write({
+            'stock_request_check_available_first': True,
+            'stock_request_allow_virtual_loc': False,
+        })
+    ```
+  </Step>
+
+  <Step title="Set up inter-company routes">
+    Configure routes between company warehouses if needed
+  </Step>
+</Steps>
+
+### Record Rules and Security
+
+The module includes these security rules by default:
+
+<CodeGroup>
+  ```xml Multi-Company Rule
+  <record model="ir.rule" id="stock_picking_rule">
+      <field name="name">stock_request multi-company</field>
+      <field name="model_id" search="[('model','=','stock.request')]"/>
+      <field name="global" eval="True"/>
+      <field name="domain_force">['|',('company_id','=',False),('company_id', 'in', company_ids)]</field>
+  </record>
+  ```
+
+  ```xml User Access Rule
+  <record id="stock_request_rule" model="ir.rule">
+      <field name="name">Stock Request User</field>
+      <field name="model_id" ref="model_stock_request"/>
+      <field name="groups" eval="[(6,0, [ref('group_stock_request_user')])]"/>
+      <field name="domain_force">[('requested_by','=',user.id)]</field>
+  </record>
+  ```
+</CodeGroup>
 
 ## Testing Your Configuration
 
-After configuration, test the setup:
-
 <Steps>
-  <Step title="Create Test Request as User">
-    Log in as a user with "Stock Request / User" permission and create a test request.
+  <Step title="Create a test product">
+    Inventory → Products → Create
+    
+    Set:
+    - Product Type: Storable Product
+    - Routes: Your configured route
+    - On hand quantity: 0 (to test procurement)
   </Step>
-  
-  <Step title="Verify Permissions">
-    Confirm the user can only see their own requests.
+
+  <Step title="Create a test request">
+    Stock Requests → Stock Requests → Create
+    
+    Fill in:
+    - Product: Your test product
+    - Quantity: 10.0
+    - Location: Your destination location
   </Step>
-  
-  <Step title="Test Manager Access">
-    Log in as a manager and verify they can see all requests.
-  </Step>
-  
-  <Step title="Test Configuration Options">
-    Create requests with different products and locations to verify configuration options work as expected.
+
+  <Step title="Confirm and verify">
+    1. Click **Confirm**
+    2. Check that procurement triggered correctly
+    3. Click **Transfers** to see created picking/PO/MO
+    4. Verify the route and rules were applied as expected
   </Step>
 </Steps>
+
+## Configuration Checklist
+
+<Accordion title="Pre-Go-Live Checklist">
+  - [ ] User groups assigned to all relevant users
+  - [ ] Company settings configured (check available first, virtual locations)
+  - [ ] Warehouse locations created and organized
+  - [ ] Routes and rules configured for all procurement scenarios
+  - [ ] Product routes assigned where needed
+  - [ ] Sequences customized to match numbering convention
+  - [ ] Integration modules configured (purchase, MRP, tier validation)
+  - [ ] Security rules reviewed and tested
+  - [ ] Test requests created and confirmed successfully
+  - [ ] Email notifications tested (if using tier validation)
+  - [ ] Training completed for end users
+  - [ ] Documentation prepared for your specific workflows
+</Accordion>
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Quick Start" icon="rocket" href="/quickstart">
-    Create your first stock request
+  <Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+    Learn how to create and manage stock requests
   </Card>
   
   <Card title="API Reference" icon="code" href="/api/stock-request">
-    Learn about the Stock Request API
+    Explore the programmatic API for automation
   </Card>
 </CardGroup>

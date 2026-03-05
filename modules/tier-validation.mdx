@@ -3,419 +3,730 @@ title: Stock Request Tier Validation
 description: Multi-tier approval workflow for stock requests and orders
 ---
 
-The Stock Request Tier Validation module extends stock requests and stock request orders with a comprehensive multi-tier validation process, allowing organizations to implement complex approval workflows based on various criteria.
+The `stock_request_tier_validation` module extends stock requests with a flexible multi-tier approval system, allowing organizations to define complex validation workflows based on various conditions.
 
 ## Overview
 
-This module integrates the powerful tier validation framework with stock requests, enabling organizations to define multiple approval tiers based on conditions like amount, product category, requester, location, or any other criteria. Each tier can have different reviewers and validation rules.
+**Module Name**: `stock_request_tier_validation`  
+**Version**: 18.0.1.0.0  
+**License**: AGPL-3  
+**Dependencies**: `stock_request`, `base_tier_validation`  
+**Author**: ForgeFlow, OCA  
+**Maintainers**: [@LoisRForgeFlow](https://github.com/LoisRForgeFlow), [@etobella](https://github.com/etobella)  
+**Category**: Warehouse
+
+<Info>
+This module implements a comprehensive tier validation process for stock requests and stock request orders, enabling multi-level approvals based on configurable rules.
+</Info>
 
 ## Key Features
 
-- **Multi-Tier Approvals**: Define multiple validation tiers with different approvers
-- **Flexible Criteria**: Set conditions based on any stock request field
-- **Review Management**: Track review status for each tier
-- **Request Validation**: Submit requests for approval
-- **Parallel Reviews**: Multiple reviewers can approve simultaneously
-- **Sequential Tiers**: Enforce order of approvals
-- **Auto-Approval**: Users with sufficient rights can bypass tiers
-- **Review Filters**: Find requests needing your review
-- **Validation History**: Complete audit trail of approvals
+### Multi-Tier Approval
 
-## Dependencies
+- Define multiple validation tiers
+- Each tier can have different approvers
+- Sequential or parallel approval flows
+- Conditional tier activation based on request attributes
 
-```python
-"depends": ["stock_request", "base_tier_validation"]
-```
+### Flexible Tier Definitions
 
-<Note>
-This module requires `base_tier_validation` from the OCA server-ux repository.
-</Note>
+- Create tiers based on:
+  - Request amount/quantity
+  - Product category
+  - Requester department
+  - Warehouse location
+  - Custom domain filters
+
+### Review Management
+
+- Track review status per tier
+- View pending reviews
+- Filter requests needing your review
+- Comment and feedback on reviews
+
+### Auto-Approval
+
+- Users with sufficient permissions can bypass tiers
+- Direct confirmation if user can validate all required tiers
+- Streamlines workflow for authorized users
 
 ## Installation
 
-### Prerequisites
-
-1. Install `base_tier_validation` module:
-   - Available at [OCA/server-ux](https://github.com/OCA/server-ux)
-   - Install from Apps or manually
-
-2. Ensure `stock_request` module is installed
-
-### Install Module
-
-1. Update the app list
-2. Search for "Stock Request Tier Validation"
-3. Click **Install**
-
-<Info>
-A default tier definition is automatically created upon installation.
-</Info>
+<Steps>
+  <Step title="Install Base Tier Validation">
+    Install `base_tier_validation` from OCA/server-ux repository.
+  </Step>
+  
+  <Step title="Install Stock Request">
+    Ensure `stock_request` module is installed.
+  </Step>
+  
+  <Step title="Install Tier Validation Module">
+    Navigate to **Apps**, search for "Stock Request Tier Validation", and click **Install**.
+  </Step>
+  
+  <Step title="Verify Installation">
+    Check that tier validation tabs appear in stock request forms.
+  </Step>
+</Steps>
 
 ## Configuration
 
 ### Default Tier Definition
 
-The module creates a default tier allowing Stock Request Managers to approve all stock requests and orders.
+A default tier is created automatically during installation:
+
+- **Name**: Stock Request Manager Approval
+- **Model**: Stock Request
+- **Reviewer**: Stock Request Manager group
+- **Domain**: All stock requests
 
 ### Creating Custom Tier Definitions
 
-1. Enable **Developer Mode**
-2. Go to **Settings > Technical > Tier Validations > Tier Definition**
-3. Click **Create**
-4. Configure the tier:
+<Steps>
+  <Step title="Navigate to Tier Definitions">
+    Go to **Settings > Technical > Tier Validations > Tier Definition**.
+    
+    (Requires developer mode enabled)
+  </Step>
+  
+  <Step title="Create New Definition">
+    Click **Create** and configure:
+    
+    - **Name**: Descriptive name for the tier
+    - **Model**: Select "Stock Request" or "Stock Request Order"
+    - **Sequence**: Order of evaluation (lower = first)
+  </Step>
+  
+  <Step title="Define Reviewers">
+    Choose reviewer type:
+    - **Group**: All users in a group can review
+    - **User**: Specific user must review
+    - **Field**: User from a field on the record
+    - **Python Code**: Dynamic reviewer determination
+  </Step>
+  
+  <Step title="Set Conditions">
+    Define when this tier applies:
+    - **Domain**: Filter expression
+    - **Python Expression**: Complex conditions
+    
+    Examples:
+    - `[('product_qty', '>', 100)]` - Quantities over 100
+    - `[('requested_by.department_id.name', '=', 'IT')]` - IT department requests
+  </Step>
+  
+  <Step title="Configure Options">
+    Set tier behavior:
+    - **Approve Sequence**: Must previous tiers be approved first?
+    - **Reject Sequence**: Can this tier reject directly?
+    - **Comment Required**: Must reviewer add comment?
+  </Step>
+</Steps>
 
-#### Basic Information
+### Example Tier Configurations
 
-- **Name**: Descriptive name for the tier
-- **Model**: Select "Stock Request" or "Stock Request Order"
-- **Company**: Leave blank for all companies or select specific one
-- **Sequence**: Order of tier execution (lower = earlier)
-
-#### Review Configuration
-
-- **Reviewer**: Choose who can review:
-  - Specific user
-  - Users in a group
-  - Users with specific field value
-  - Python expression
-
-#### Conditions (Domain)
-
-Define when this tier applies using a domain filter:
+#### Small Requests (Auto-Approve)
 
 ```python
-# Example: Orders over 1000 units
-[('product_uom_qty', '>', 1000)]
-
-# Example: Specific product category
-[('product_id.categ_id.name', '=', 'Raw Materials')]
-
-# Example: High-value items
-[('product_id.standard_price', '>', 100)]
-
-# Example: Specific warehouse
-[('warehouse_id.code', '=', 'WH1')]
+Name: Team Lead Approval
+Model: Stock Request
+Sequence: 10
+Reviewer: Team Lead group
+Domain: [('product_qty', '<=', 50)]
+Approve Sequence: False
 ```
 
-### Example Tier Setups
+#### Large Requests (Department Head)
 
-#### Simple Two-Tier Approval
+```python
+Name: Department Head Approval  
+Model: Stock Request
+Sequence: 20
+Reviewer: Department Head group
+Domain: [('product_qty', '>', 50), ('product_qty', '<=', 500)]
+Approve Sequence: True
+```
 
-**Tier 1: Supervisor Approval**
-- Sequence: 10
-- Reviewer: Stock Request Supervisor group
-- Condition: All requests
+#### High-Value Requests (Manager)
 
-**Tier 2: Manager Approval**
-- Sequence: 20
-- Reviewer: Stock Request Manager group
-- Condition: Quantity > 100
-
-#### Department-Based Approval
-
-**Tier 1: Department Manager**
-- Sequence: 10
-- Reviewer: User's manager
-- Condition: All requests
-
-**Tier 2: Warehouse Manager**
-- Sequence: 20
-- Reviewer: Warehouse Manager role
-- Condition: Quantity > 50
-
-**Tier 3: Executive Approval**
-- Sequence: 30
-- Reviewer: Executive group
-- Condition: Total value > $10,000
+```python
+Name: Manager Approval
+Model: Stock Request
+Sequence: 30
+Reviewer: Stock Request Manager group
+Domain: [('product_qty', '>', 500)]
+Approve Sequence: True
+Comment Required: True
+```
 
 ## Usage
 
-### Creating a Request with Validation
+### Requesting Approval
 
-1. Navigate to **Stock Requests > Stock Requests**
-2. Click **Create**
-3. Fill in request details:
-   - Product
-   - Quantity
-   - Location
-   - Other information
-4. **Save** the request (don't confirm yet)
-5. System evaluates which tiers apply
-6. Click **Request Validation**
-
-<Info>
-The "Request Validation" button appears when at least one tier definition is triggered.
-</Info>
+<Steps>
+  <Step title="Create Stock Request">
+    Create stock request as normal:
+    - Fill in product, quantity, location, date
+    - Save the request
+  </Step>
+  
+  <Step title="Check Required Tiers">
+    System evaluates tier definitions:
+    - Matching tiers are identified
+    - Reviews tab shows required approvals
+  </Step>
+  
+  <Step title="Request Validation">
+    Click **Request Validation** button:
+    - Request state changes to validation pending
+    - Reviewers are notified
+    - Reviews tab shows pending approvals
+  </Step>
+  
+  <Step title="Track Progress">
+    Monitor approval progress:
+    - Check **Reviews** tab for status
+    - See which tiers approved/pending
+    - View reviewer comments
+  </Step>
+  
+  <Step title="Confirmation Available">
+    Once all tiers validated:
+    - **Confirm** button becomes available
+    - Click to process the request
+  </Step>
+</Steps>
 
 ### Reviewing Requests
 
-#### Finding Requests Needing Review
+<Steps>
+  <Step title="Find Pending Reviews">
+    Go to **Stock Requests > Stock Requests**.
+    
+    Apply filter: **Needs my Review**
+    
+    Lists all requests awaiting your approval.
+  </Step>
+  
+  <Step title="Open Request">
+    Click on a request to review details:
+    - Review product, quantity, destination
+    - Check requester and justification
+    - Verify routing and procurement settings
+  </Step>
+  
+  <Step title="Navigate to Reviews Tab">
+    Open the **Reviews** tab:
+    - See all required tiers
+    - Your pending reviews highlighted
+    - View other reviewers' decisions
+  </Step>
+  
+  <Step title="Make Decision">
+    Choose action:
+    - **Approve**: Click approve button for your tier
+    - **Reject**: Click reject to deny request
+    - **Comment**: Add explanation or feedback
+  </Step>
+  
+  <Step title="Submit Review">
+    Confirm your decision:
+    - Add required comment if mandatory
+    - Submit the review
+    - Request progresses to next tier or completion
+  </Step>
+</Steps>
 
-1. Go to **Stock Requests > Stock Requests**
-2. Apply the filter **Needs my Review**
-3. Open a request from the list
-
-#### Reviewing a Request
-
-1. Open the stock request
-2. Go to the **Reviews** tab
-3. Review the request details
-4. Click **Approve** or **Reject** for your tier
-5. Optionally add comments
-
-<Note>
-You can only approve/reject tiers where you are designated as a reviewer.
-</Note>
-
-### Validation Status
-
-The Reviews tab shows:
-
-- **Tier Name**: Which validation tier
-- **Status**: Pending, Approved, or Rejected
-- **Reviewer**: Who needs to review
-- **Review Date**: When reviewed
-- **Comments**: Reviewer notes
-
-### Confirmation After Validation
-
-Once all tiers are validated:
-
-1. The **Confirm** button becomes available
-2. Click **Confirm** to proceed with the request
-3. Normal procurement process begins
-
-<Warning>
-If any tier is rejected, the request cannot be confirmed until the rejection is resolved.
-</Warning>
-
-## Technical Details
-
-### Module Information
-
-- **Technical Name**: `stock_request_tier_validation`
-- **Version**: 18.0.1.0.0
-- **License**: AGPL-3
-- **Category**: Warehouse
-- **Author**: ForgeFlow, OCA
-- **Maintainers**: LoisRForgeFlow, etobella
-
-### Models Extended
-
-#### stock.request
-
-- Inherits `tier.validation` mixin
-- Adds review tracking fields
-- Implements validation state machine
-- Adds validation buttons and tabs
-
-#### stock.request.order
-
-- Inherits `tier.validation` mixin
-- Propagates validation to order lines
-- Manages order-level approvals
-
-### Fields Added
-
-- `review_ids` - One2many to tier.review
-- `validated` - Boolean for validation complete
-- `need_validation` - Boolean for pending validation
-- `reviewer_ids` - Many2many to current reviewers
-- `has_comment` - Boolean for review comments
-
-### Views Extended
-
-- Form views with Reviews tab
-- Validation status indicators
-- Request/Approve/Reject buttons
-- Filter for "Needs my Review"
-
-## Advanced Features
-
-### Auto-Approval Rights
+### Direct Confirmation (Authorized Users)
 
 <Info>
-Users with rights to validate all tiers can directly confirm requests without going through the validation process.
+Users who can validate all required tiers can directly confirm without requesting validation.
 </Info>
 
-To grant auto-approval rights:
+<Steps>
+  <Step title="Create Request">
+    Authorized user creates stock request.
+  </Step>
+  
+  <Step title="Direct Confirmation">
+    Click **Confirm** button directly:
+    - System checks if user can validate all tiers
+    - If yes: Request confirmed immediately
+    - If no: Must request validation
+  </Step>
+</Steps>
 
-1. Ensure user is reviewer for all possible tiers
-2. User will see Confirm button instead of Request Validation
-3. Useful for emergency situations or managers
+## Data Models
 
-### Python Expression Reviewers
+### Stock Request (Extended)
 
-For complex reviewer logic, use Python expressions:
+Adds tier validation fields:
 
 ```python
-# Manager of the user who created the request
-record.requested_by.parent_id
-
-# Users from specific analytic account
-record.analytic_account_id.user_ids
-
-# Dynamic based on product
-record.product_id.responsible_id
+class StockRequest(models.Model):
+    _name = 'stock.request'
+    _inherit = ['stock.request', 'tier.validation']
+    _state_from = ['draft']
+    _state_to = ['open']
+    
+    # Tier validation fields (from tier.validation mixin)
+    review_ids = fields.One2many(
+        'tier.review',
+        'res_id',
+        domain=lambda self: [('model', '=', self._name)],
+        string='Reviews'
+    )
+    
+    validated = fields.Boolean(
+        compute='_compute_validated_rejected',
+        string='Validated'
+    )
+    
+    need_validation = fields.Boolean(
+        compute='_compute_need_validation',
+        string='Need Validation'
+    )
+    
+    reviewer_ids = fields.Many2many(
+        'res.users',
+        compute='_compute_reviewer_ids',
+        string='Reviewers'
+    )
 ```
 
-### Sequential vs Parallel Tiers
+### Tier Review Model
 
-Control tier behavior with sequence:
+```python
+class TierReview(models.Model):
+    _name = 'tier.review'
+    
+    model = fields.Char()              # Model name
+    res_id = fields.Integer()          # Record ID
+    definition_id = fields.Many2one(   # Tier definition
+        'tier.definition'
+    )
+    reviewer_id = fields.Many2one(     # Assigned reviewer
+        'res.users'
+    )
+    status = fields.Selection([        # Review status
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ])
+    comment = fields.Text()            # Reviewer comment
+    review_date = fields.Datetime()    # When reviewed
+```
 
-**Parallel Tiers** (same sequence):
-```
-Tier A (seq 10) ─┐
-                 ├─> Both can approve simultaneously
-Tier B (seq 10) ─┘
+## Views
+
+### Stock Request Form View
+
+Enhanced with tier validation:
+
+```xml
+<header>
+    <!-- Request validation button -->
+    <button name="request_validation" 
+            type="object" 
+            string="Request Validation"
+            class="oe_highlight"
+            attrs="{'invisible': ['|', 
+                                  ('need_validation', '=', False),
+                                  ('review_ids', '!=', [])]}"/>
+    
+    <!-- Confirm button (appears after validation) -->
+    <button name="action_confirm" 
+            type="object" 
+            string="Confirm"
+            class="oe_highlight"
+            attrs="{'invisible': ['|',
+                                  ('validated', '=', False),
+                                  ('state', '!=', 'draft')]}"/>
+</header>
+
+<!-- Reviews tab -->
+<page string="Reviews" 
+      name="reviews"
+      attrs="{'invisible': [('review_ids', '=', [])]}">
+    <field name="review_ids" mode="tree">
+        <tree>
+            <field name="definition_id"/>
+            <field name="reviewer_id"/>
+            <field name="status" widget="badge"/>
+            <field name="review_date"/>
+            <field name="comment"/>
+        </tree>
+    </field>
+</page>
 ```
 
-**Sequential Tiers** (different sequence):
+### Search View with Filter
+
+```xml
+<filter name="needs_my_review" 
+        string="Needs my Review"
+        domain="[('reviewer_ids', 'in', uid)]"/>
 ```
-Tier A (seq 10) → Must approve first
-Tier B (seq 20) → Can only approve after Tier A
-Tier C (seq 30) → Can only approve after Tier B
+
+## Tier Validation Flow
+
+### Validation State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft
+    Draft --> ValidationRequested: Request Validation
+    ValidationRequested --> Tier1Pending: Evaluate Tiers
+    Tier1Pending --> Tier1Approved: Reviewer Approves
+    Tier1Pending --> Rejected: Reviewer Rejects
+    Tier1Approved --> Tier2Pending: Next Tier
+    Tier2Pending --> Tier2Approved: Reviewer Approves
+    Tier2Pending --> Rejected: Reviewer Rejects
+    Tier2Approved --> AllApproved: All Tiers Complete
+    AllApproved --> Confirmed: User Confirms
+    Confirmed --> [*]
+    Rejected --> Draft: Reset to Draft
 ```
+
+### Approval Process
+
+<Steps>
+  <Step title="Tier Evaluation">
+    System evaluates all tier definitions:
+    - Checks domain conditions
+    - Identifies matching tiers
+    - Orders by sequence
+  </Step>
+  
+  <Step title="Review Creation">
+    Creates review records:
+    - One per matching tier
+    - Assigns reviewers
+    - Sets to pending status
+  </Step>
+  
+  <Step title="Sequential Approval">
+    If approve sequence enabled:
+    - Tier 1 must approve first
+    - Then Tier 2 becomes available
+    - Continues sequentially
+  </Step>
+  
+  <Step title="Parallel Approval">
+    If approve sequence disabled:
+    - All tiers available simultaneously
+    - Reviewers can approve in any order
+    - All must approve to complete
+  </Step>
+  
+  <Step title="Validation Complete">
+    When all tiers approved:
+    - `validated` field set to True
+    - Confirm button becomes available
+    - User can complete confirmation
+  </Step>
+</Steps>
 
 ## Use Cases
 
-### Budget Control
+### Budget-Based Approvals
 
-**Scenario**: Different approval levels based on cost
+**Scenario**: Different approval levels based on request value.
 
-- Tier 1: Supervisor (< $1,000)
-- Tier 2: Manager ($1,000 - $5,000)
-- Tier 3: Director (> $5,000)
+**Configuration**:
+- Tier 1: Team Lead (value < $1000)
+- Tier 2: Department Head ($1000 - $5000)
+- Tier 3: Finance Director (> $5000)
 
-### Material Control
+**Domain Examples**:
+```python
+# Tier 1
+[('product_qty', '<=', 100)]
 
-**Scenario**: Special approval for controlled materials
+# Tier 2  
+[('product_qty', '>', 100), ('product_qty', '<=', 500)]
 
-- Tier 1: Safety Officer (hazardous materials)
-- Tier 2: Compliance Manager (regulated items)
-- Tier 3: Department Head (all requests)
+# Tier 3
+[('product_qty', '>', 500)]
+```
 
-### Multi-Site Operations
+### Department-Specific Workflows
 
-**Scenario**: Site-specific approvals
+**Scenario**: Different approval chains per department.
 
-- Tier 1: Site Warehouse Manager
-- Tier 2: Site Operations Manager
-- Tier 3: Regional Manager (high quantities)
+**Configuration**:
+```python
+# IT Department requests
+Name: IT Manager Approval
+Domain: [('requested_by.department_id.name', '=', 'IT')]
+Reviewer: IT Manager
 
-### Project-Based Approval
+# Production requests
+Name: Production Supervisor Approval
+Domain: [('requested_by.department_id.name', '=', 'Production')]
+Reviewer: Production Supervisor
+```
 
-**Scenario**: Project manager approval
+### Product Category Validation
 
-- Tier 1: Project Manager (for project materials)
-- Tier 2: Procurement Manager (purchase items)
-- Tier 3: Finance Manager (budget verification)
+**Scenario**: Certain product categories need special approval.
+
+**Configuration**:
+```python
+# Hazardous materials
+Name: Safety Officer Approval
+Domain: [('product_id.categ_id.name', '=', 'Hazardous')]
+Reviewer: Safety Officer
+Comment Required: True
+
+# High-value items
+Name: CFO Approval
+Domain: [('product_id.categ_id.name', '=', 'Equipment')]
+Reviewer: CFO
+```
 
 ## Best Practices
 
 ### Tier Design
 
-- Keep tier count reasonable (3-5 maximum)
-- Use clear, descriptive tier names
-- Set appropriate sequence numbers
-- Document tier purpose and criteria
-- Review and update tiers regularly
+<Tip>
+**Clear Sequences**: Use clear sequence numbering (10, 20, 30) to allow easy insertion of new tiers later.
+</Tip>
+
+<Tip>
+**Avoid Over-Complexity**: Too many tiers slow down processes. Keep validation workflow as simple as possible.
+</Tip>
+
+<Tip>
+**Test Thoroughly**: Test tier definitions with sample requests to ensure correct behavior.
+</Tip>
+
+### Domain Configuration
+
+<Tip>
+**Mutually Exclusive**: Design tier domains to avoid overlapping conditions when possible.
+</Tip>
+
+<Tip>
+**Performance**: Keep domain filters simple for better performance, especially with many requests.
+</Tip>
 
 ### Reviewer Assignment
 
-- Use groups rather than individual users when possible
-- Ensure backup reviewers are available
-- Balance workload across reviewers
-- Set up delegation for absences
-- Train reviewers on their responsibilities
+<Tip>
+**Group-Based**: Use groups rather than specific users for flexibility when roles change.
+</Tip>
 
-### Domain Conditions
+<Tip>
+**Backup Reviewers**: Ensure multiple users per tier to handle absences.
+</Tip>
 
-- Test domain filters thoroughly
-- Use simple conditions when possible
-- Document complex domain logic
-- Consider performance impact
-- Avoid overly restrictive conditions
+### Communication
 
-### Process Management
+<Tip>
+**Notifications**: Configure email notifications to alert reviewers of pending requests.
+</Tip>
 
-- Set SLAs for review times
-- Monitor pending reviews regularly
-- Track approval bottlenecks
-- Escalate stuck requests
-- Analyze rejection patterns
+<Tip>
+**Comment Usage**: Encourage reviewers to add comments explaining decisions, especially rejections.
+</Tip>
+
+## Advanced Configuration
+
+### Python Expression Conditions
+
+For complex conditions:
+
+```python
+# In tier definition, use Python Expression field:
+
+# Check if product cost above threshold
+result = record.product_id.standard_price * record.product_qty > 10000
+
+# Check requester's manager
+result = record.requested_by.parent_id.id == 5
+
+# Business day check
+from datetime import datetime
+result = datetime.now().weekday() < 5  # Monday-Friday only
+```
+
+### Dynamic Reviewer Assignment
+
+```python
+# In tier definition, Reviewer Type = Python Code:
+
+# Assign to requester's manager
+result = record.requested_by.parent_id
+
+# Assign to warehouse manager
+result = record.warehouse_id.manager_id
+
+# Assign to product category responsible
+result = record.product_id.categ_id.manager_id
+```
+
+### Conditional Tier Activation
+
+Activate tiers based on time or other factors:
+
+```python
+# Weekend requests need extra approval
+from datetime import datetime
+result = datetime.now().weekday() >= 5  # Saturday or Sunday
+
+# End of month requests
+from datetime import datetime
+result = datetime.now().day > 25
+
+# Urgent requests (short lead time)
+result = (record.expected_date - fields.Datetime.now()).days < 2
+```
 
 ## Troubleshooting
 
-### Request Validation Button Not Showing
+### Tier Not Triggering
+
+**Problem**: Expected tier not appearing for a request.
+
+**Solutions**:
+1. Check domain filter matches request
+2. Verify tier is active (not archived)
+3. Test domain in developer console
+4. Check tier model matches (stock.request vs stock.request.order)
+5. Review tier sequence and prerequisites
+
+### Cannot Confirm After Approval
+
+**Problem**: Confirm button not appearing after all tiers approved.
+
+**Solutions**:
+1. Verify ALL tiers are approved (check Reviews tab)
+2. Check user has permission to confirm
+3. Ensure request in correct state (should be draft)
+4. Look for validation errors in logs
+
+### Needs My Review Filter Empty
+
+**Problem**: Filter shows no results despite pending reviews.
+
+**Solutions**:
+1. Verify you're assigned as reviewer for relevant tiers
+2. Check group membership if tier uses group reviewers
+3. Refresh the view
+4. Check if reviews already completed by you
+
+### Wrong Reviewer Assigned
+
+**Problem**: Tier assigned to unexpected reviewer.
+
+**Solutions**:
+1. Review tier definition reviewer configuration
+2. Check if using field-based or Python code reviewer
+3. Verify user/group data is correct
+4. Test reviewer assignment logic
+
+## Performance Considerations
 
 <Warning>
-If the button doesn't appear:
+Complex tier definitions with heavy domain filters or Python expressions can impact performance when many requests are being processed.
 </Warning>
 
-- No tier definitions match the request
-- Check tier domain conditions
-- Verify tier is active
-- Ensure model is correct
-- Review company settings on tier
+### Optimization Tips
 
-### Cannot Approve/Reject
+1. **Simple Domains**: Use simple domain filters when possible
+2. **Index Fields**: Ensure fields used in domains are indexed
+3. **Cache Reviewers**: Use groups instead of dynamic reviewer calculation
+4. **Limit Tiers**: Keep number of tiers to minimum necessary
+5. **Batch Processing**: Process tier evaluations in batch when possible
 
-Common causes:
+## Integration Examples
 
-- Not designated as reviewer for the tier
-- Previous tier not yet approved (sequential)
-- Already reviewed (can't review twice)
-- Insufficient access rights
+### Programmatic Review Approval
 
-### Confirm Button Not Appearing
+```python
+# Find reviews pending for current user
+my_pending_reviews = env['tier.review'].search([
+    ('model', '=', 'stock.request'),
+    ('reviewer_id', '=', env.user.id),
+    ('status', '=', 'pending'),
+])
 
-Ensure:
+# Approve a review
+review.write({
+    'status': 'approved',
+    'review_date': fields.Datetime.now(),
+    'comment': 'Approved - within budget',
+})
 
-- All tiers are approved
-- No tiers are rejected
-- Validation is complete
-- User has confirm rights
+# Check if stock request fully validated
+if stock_request.validated:
+    stock_request.action_confirm()
+```
 
-### Tier Not Being Created
+### Custom Validation Logic
 
-- Check module is installed and updated
-- Verify tier definition is saved
-- Test domain condition separately
-- Check tier definition active status
+```python
+class StockRequest(models.Model):
+    _inherit = 'stock.request'
+    
+    def request_validation(self):
+        # Custom pre-validation checks
+        for request in self:
+            if not request.route_id:
+                raise UserError("Please select a route before requesting validation.")
+        
+        # Call original method
+        return super().request_validation()
+```
 
-## Integration with Other Modules
+## Comparison: Submit vs Tier Validation
+
+| Feature | Stock Request Submit | Tier Validation |
+|---------|----------------------|------------------|
+| **Approval Tiers** | Single (submitted → confirmed) | Multiple configurable tiers |
+| **Complexity** | Simple | Advanced |
+| **Conditional Logic** | No | Yes (domain-based) |
+| **Review Tracking** | Basic state | Detailed per tier |
+| **Use Case** | Simple approval | Complex workflows |
+| **License** | LGPL-3 | AGPL-3 |
+
+**Recommendation**: 
+- Use **Submit** for simple single-approval workflows
+- Use **Tier Validation** for complex multi-tier requirements
+
+## Related Modules
 
 <CardGroup cols={2}>
   <Card title="Stock Request Core" icon="box" href="/modules/core">
-    Base functionality for stock requests
+    Base stock request functionality
   </Card>
   
   <Card title="Stock Request Submit" icon="paper-plane" href="/modules/submit">
-    Combine with submit state for enhanced workflow
+    Alternative: Simple submission workflow
   </Card>
   
-  <Card title="Stock Request Purchase" icon="shopping-cart" href="/modules/purchase">
-    Approve before PO creation
-  </Card>
-  
-  <Card title="Stock Request MRP" icon="industry" href="/modules/mrp">
-    Approve before MO generation
+  <Card title="Base Tier Validation" icon="book" href="https://github.com/OCA/server-ux">
+    Core tier validation framework (OCA/server-ux)
   </Card>
 </CardGroup>
 
-<Note>
-Tier Validation works excellently with the Submit module for comprehensive approval workflows.
-</Note>
+## Default Tier Configuration
 
-## Support
+The module installs with this default tier:
 
-For issues and feature requests:
+```xml
+<!-- data/stock_request_tier_definition.xml -->
+<record id="tier_definition_stock_request_manager" 
+        model="tier.definition">
+    <field name="name">Stock Request Manager Approval</field>
+    <field name="model_id" ref="stock_request.model_stock_request"/>
+    <field name="review_type">group</field>
+    <field name="reviewer_group_id" 
+           ref="stock_request.group_stock_request_manager"/>
+    <field name="sequence">10</field>
+</record>
+```
 
-- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
-- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_tier_validation)
-- **Base Module**: [OCA/server-ux](https://github.com/OCA/server-ux)
-
-<Info>
-Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
-</Info>
+This ensures all requests require manager approval by default.

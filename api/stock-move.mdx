@@ -1,170 +1,306 @@
 ---
-title: "stock.move Extension"
-description: "Stock Request extensions to the stock.move model"
+title: "stock.move"
+description: "Extensions to the standard Odoo stock.move model"
 ---
 
 ## Overview
 
-The Stock Request module extends Odoo's standard `stock.move` model to create a link between stock movements and stock requests through an allocation mechanism. This extension enables tracking which stock requests are fulfilled by which stock moves, and ensures proper lifecycle management when moves are cancelled or completed.
+The Stock Request framework extends the standard Odoo `stock.move` model to integrate stock requests with inventory movements. This allows stock moves to be linked to stock request allocations and enables tracking of which stock requests are being fulfilled by specific moves.
 
-**Base Model**: `stock.move`
+## Model Information
 
-**Purpose**: Link stock moves with stock requests via allocations, manage request lifecycle, and maintain data integrity across company boundaries.
-
-## Added Fields
-
-<ParamField path="allocation_ids" type="One2many">
-  Collection of stock request allocations linked to this move. Each allocation connects a portion of this move's quantity to a specific stock request.
-  
-  - **Comodel**: `stock.request.allocation`
-  - **Inverse Field**: `stock_move_id`
+<ParamField path="_inherit" type="string">
+  stock.move
 </ParamField>
 
-<ParamField path="stock_request_ids" type="One2many" computed>
-  Computed field that returns all stock requests associated with this move through allocations. This provides a convenient way to access all requests without navigating through the allocation records.
-  
-  - **Comodel**: `stock.request`
-  - **Compute Method**: `_compute_stock_request_ids`
+<ParamField path="_name" type="string">
+  stock.move
 </ParamField>
 
-## Added Methods
+---
 
-### _compute_stock_request_ids()
+## Fields
 
-Computes the stock requests linked to this move by extracting them from the allocation records.
+### Stock Request Module
 
-**Dependencies**: `allocation_ids`
+<ResponseField name="allocation_ids" type="One2many">
+  Links to stock request allocations associated with this move.
+  
+  <Expandable title="properties">
+    <ResponseField name="comodel_name" type="string">
+      stock.request.allocation
+    </ResponseField>
+    <ResponseField name="inverse_name" type="string">
+      stock_move_id
+    </ResponseField>
+    <ResponseField name="string" type="string">
+      Stock Request Allocation
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="stock_request_ids" type="One2many" computed="true">
+  Computed field that returns all stock requests linked to this move through allocations.
+  
+  <Expandable title="properties">
+    <ResponseField name="comodel_name" type="string">
+      stock.request
+    </ResponseField>
+    <ResponseField name="string" type="string">
+      Stock Requests
+    </ResponseField>
+    <ResponseField name="compute" type="string">
+      _compute_stock_request_ids
+    </ResponseField>
+    <ResponseField name="depends" type="list">
+      allocation_ids
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Stock Return Request Module
+
+<ResponseField name="qty_returnable" type="Float">
+  Computes the quantity from this move that can still be returned. Takes into account already returned quantities from chained return moves.
+  
+  <Expandable title="properties">
+    <ResponseField name="digits" type="string">
+      Product Unit of Measure
+    </ResponseField>
+    <ResponseField name="string" type="string">
+      Returnable Quantity
+    </ResponseField>
+    <ResponseField name="compute" type="string">
+      _compute_qty_returnable
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Methods
+
+### Stock Request Module
+
+<ParamField path="_compute_stock_request_ids" type="method">
+  Computes the stock_request_ids field by extracting all stock requests from the allocation_ids.
+  
+  **Depends on:** `allocation_ids`
+  
+  ```python
+  @api.depends("allocation_ids")
+  def _compute_stock_request_ids(self):
+      for rec in self:
+          rec.stock_request_ids = rec.allocation_ids.mapped("stock_request_id")
+  ```
+</ParamField>
+
+<ParamField path="_merge_moves_fields" type="method">
+  Extends the base merge moves functionality to include allocation_ids when merging moves.
+  
+  **Returns:** Dictionary of fields to merge
+  
+  ```python
+  def _merge_moves_fields(self):
+      res = super()._merge_moves_fields()
+      res["allocation_ids"] = [(4, m.id) for m in self.mapped("allocation_ids")]
+      return res
+  ```
+</ParamField>
+
+<ParamField path="_check_company_stock_request" type="method">
+  Constraint method that validates the company of the stock request matches the company of the stock move.
+  
+  **Constrains:** `company_id`
+  
+  **Raises:** `ValidationError` if companies don't match
+  
+  ```python
+  @api.constrains("company_id")
+  def _check_company_stock_request(self):
+      if any(
+          self.env["stock.request.allocation"].search(
+              [
+                  ("company_id", "!=", rec.company_id.id),
+                  ("stock_move_id", "=", rec.id),
+              ],
+              limit=1,
+          )
+          for rec in self
+      ):
+          raise ValidationError(
+              _("The company of the stock request must match with that of the location.")
+          )
+  ```
+</ParamField>
+
+<ParamField path="copy_data" type="method">
+  Extends copy functionality to duplicate allocation_ids when copying a stock move.
+  
+  **Parameters:**
+  - `default` (dict, optional): Default values for the copy
+  
+  **Returns:** Dictionary of copied data
+  
+  ```python
+  def copy_data(self, default=None):
+      if not default:
+          default = {}
+      if "allocation_ids" not in default:
+          default["allocation_ids"] = []
+      for alloc in self.allocation_ids:
+          default["allocation_ids"].append(
+              (
+                  0,
+                  0,
+                  {
+                      "stock_request_id": alloc.stock_request_id.id,
+                      "requested_product_uom_qty": alloc.requested_product_uom_qty,
+                  },
+              )
+          )
+      return super().copy_data(default)
+  ```
+</ParamField>
+
+<ParamField path="_action_cancel" type="method">
+  Extends the cancel action to trigger stock request cancellation checks. Uses sudo to prevent ACL errors when users don't have direct request permissions.
+  
+  **Returns:** Result from parent method
+  
+  ```python
+  def _action_cancel(self):
+      res = super()._action_cancel()
+      self.mapped("allocation_ids.stock_request_id").sudo().check_cancel()
+      return res
+  ```
+  
+  <Note>
+    This method applies sudo to prevent ACL errors if the user doesn't have permissions on stock requests (e.g., when canceling production moves).
+  </Note>
+</ParamField>
+
+<ParamField path="_action_done" type="method">
+  Extends the done action to trigger stock request completion checks. Uses sudo to prevent ACL errors when users don't have direct request permissions.
+  
+  **Parameters:**
+  - `cancel_backorder` (bool): Whether to cancel the backorder
+  
+  **Returns:** Result from parent method
+  
+  ```python
+  def _action_done(self, cancel_backorder=False):
+      res = super()._action_done(cancel_backorder=cancel_backorder)
+      self.mapped("allocation_ids.stock_request_id").sudo().check_done()
+      return res
+  ```
+  
+  <Note>
+    This method applies sudo to prevent ACL errors if the user doesn't have permissions on stock requests (e.g., when completing production moves).
+  </Note>
+</ParamField>
+
+### Stock Return Request Module
+
+<ParamField path="_compute_qty_returnable" type="method">
+  Computes the returnable quantity by looking at chained returned moves. Only processes moves that are not in draft or cancelled state.
+  
+  **Logic:**
+  - If the move has no returned_move_ids and is done, the full quantity is returnable
+  - Otherwise, returnable qty = original quantity - sum of returned quantities from chained returns
+  
+  ```python
+  def _compute_qty_returnable(self):
+      self.qty_returnable = 0
+      for move in self.filtered(lambda x: x.state not in ["draft", "cancel"]):
+          if not move.returned_move_ids:
+              if move.state == "done":
+                  move.qty_returnable = move.quantity
+              continue
+          move.qty_returnable = move.quantity - sum(
+              move.returned_move_ids.mapped("qty_returnable")
+          )
+  ```
+</ParamField>
+
+<ParamField path="_get_lot_returnable_qty" type="method">
+  Computes the returnable quantity for a specific lot by analyzing chained returned moves.
+  
+  **Parameters:**
+  - `lot_id` (recordset): The lot/serial number to check
+  - `qty` (float, default=0): Starting quantity (used in recursion)
+  
+  **Returns:** Float representing the returnable quantity for the specified lot
+  
+  ```python
+  def _get_lot_returnable_qty(self, lot_id, qty=0):
+      for move in self.filtered(lambda x: x.state not in ["draft", "cancel"]):
+          mls = move.move_line_ids.filtered(lambda x: x.lot_id == lot_id)
+          qty += sum(mls.mapped("quantity"))
+          qty -= move.returned_move_ids._get_lot_returnable_qty(lot_id)
+      return qty
+  ```
+</ParamField>
+
+<ParamField path="_action_assign" type="method">
+  Extends the assign action to allow skipping automatic assignment when creating stock move lines manually.
+  
+  **Context Variables:**
+  - `skip_assign_move` (bool): If True, skips the assignment
+  
+  **Returns:** Result from parent method or None if skipped
+  
+  ```python
+  def _action_assign(self):
+      if self.env.context.get("skip_assign_move", False):
+          # Avoid assign stock moves allowing create stock move lines manually
+          return
+      return super()._action_assign()
+  ```
+  
+  <Info>
+    Set the `skip_assign_move` context variable to True when you want to manually create stock move lines without automatic assignment.
+  </Info>
+</ParamField>
+
+---
+
+## Usage Examples
+
+### Accessing Stock Requests from a Move
 
 ```python
-@api.depends("allocation_ids")
-def _compute_stock_request_ids(self):
-    for rec in self:
-        rec.stock_request_ids = rec.allocation_ids.mapped("stock_request_id")
+# Get all stock requests linked to a move
+move = self.env['stock.move'].browse(move_id)
+stock_requests = move.stock_request_ids
+
+# Get allocations
+allocations = move.allocation_ids
 ```
 
-<Info>
-  This computed field automatically updates whenever allocations are added or removed from the move.
-</Info>
-
-## Overridden Methods
-
-### _merge_moves_fields()
-
-Extends the standard move merging logic to properly handle stock request allocations when multiple moves are merged together.
+### Checking Returnable Quantity
 
 ```python
-def _merge_moves_fields(self):
-    res = super()._merge_moves_fields()
-    res["allocation_ids"] = [(4, m.id) for m in self.mapped("allocation_ids")]
-    return res
+# Check how much of a move can be returned
+move = self.env['stock.move'].browse(move_id)
+returnable_qty = move.qty_returnable
+
+# Check returnable quantity for a specific lot
+lot = self.env['stock.lot'].browse(lot_id)
+lot_returnable_qty = move._get_lot_returnable_qty(lot)
 ```
 
-<Note>
-  The `(4, m.id)` command links existing allocation records to the merged move without creating duplicates.
-</Note>
-
-### copy_data()
-
-Overrides the copy behavior to properly duplicate stock request allocations when a move is copied.
+### Creating Moves with Manual Line Assignment
 
 ```python
-def copy_data(self, default=None):
-    if not default:
-        default = {}
-    if "allocation_ids" not in default:
-        default["allocation_ids"] = []
-    for alloc in self.allocation_ids:
-        default["allocation_ids"].append(
-            (
-                0,
-                0,
-                {
-                    "stock_request_id": alloc.stock_request_id.id,
-                    "requested_product_uom_qty": alloc.requested_product_uom_qty,
-                },
-            )
-        )
-    return super().copy_data(default)
+# Skip automatic assignment to create lines manually
+move = move.with_context(skip_assign_move=True)
+move._action_assign()  # This will return without assigning
 ```
 
-<Info>
-  When copying a move, new allocation records are created with the same stock request references and quantities.
-</Info>
+---
 
-### _action_cancel()
+## Source Code References
 
-Extends the cancellation logic to trigger stock request checks when a move is cancelled.
-
-```python
-def _action_cancel(self):
-    """Apply sudo to prevent requests ACL errors if the user does not have
-    permissions (example: productions)."""
-    res = super()._action_cancel()
-    self.mapped("allocation_ids.stock_request_id").sudo().check_cancel()
-    return res
-```
-
-<Note>
-  Uses `sudo()` to bypass access control checks, ensuring that stock requests can be updated even when triggered by automated processes like manufacturing orders.
-</Note>
-
-### _action_done()
-
-Extends the completion logic to trigger stock request checks when a move is completed.
-
-```python
-def _action_done(self, cancel_backorder=False):
-    """Apply sudo to prevent requests ACL errors if the user does not have
-    permissions (example: productions)."""
-    res = super()._action_done(cancel_backorder=cancel_backorder)
-    self.mapped("allocation_ids.stock_request_id").sudo().check_done()
-    return res
-```
-
-<Info>
-  The `check_done()` method on stock requests updates their state based on whether all allocated moves have been completed.
-</Info>
-
-## Constraints
-
-### _check_company_stock_request()
-
-Validates that all stock request allocations belong to the same company as the move.
-
-```python
-@api.constrains("company_id")
-def _check_company_stock_request(self):
-    if any(
-        self.env["stock.request.allocation"].search(
-            [
-                ("company_id", "!=", rec.company_id.id),
-                ("stock_move_id", "=", rec.id),
-            ],
-            limit=1,
-        )
-        for rec in self
-    ):
-        raise ValidationError(
-            _(
-                "The company of the stock request must match with "
-                "that of the location."
-            )
-        )
-```
-
-<Note>
-  This constraint prevents cross-company data inconsistencies by ensuring stock requests and their moves belong to the same company.
-</Note>
-
-## Relationships
-
-**To Stock Request**: Connected via `stock.request.allocation` (many-to-many through allocations)
-
-**To Stock Request Allocation**: Direct one-to-many relationship through `allocation_ids`
-
-## Use Cases
-
-1. **Request Fulfillment Tracking**: Monitor which stock moves are fulfilling specific stock requests
-2. **Partial Allocations**: Allocate portions of move quantities to different requests
-3. **Automated Workflows**: Automatically update request status when moves are completed or cancelled
-4. **Multi-Company Operations**: Maintain data integrity across company boundaries
+- Stock Request extensions: `stock_request/models/stock_move.py`
+- Stock Return Request extensions: `stock_return_request/models/stock_move.py`

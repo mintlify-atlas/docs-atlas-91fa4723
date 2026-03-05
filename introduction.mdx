@@ -1,119 +1,176 @@
 ---
 title: Introduction
-description: Overview of the Stock Request framework for Odoo
+description: Overview of the Stock Request Odoo framework for managing internal stock requests
 ---
 
-The Stock Request module enables users to request products that are frequently stocked by the company to be transferred to their chosen location. It provides a structured workflow for managing internal stock requests within your warehouse operations.
+## What is Stock Request?
 
-## What Problem Does It Solve?
+Stock Request is a comprehensive Odoo framework that allows users to request products to be transferred to their chosen location. It provides a streamlined workflow for internal stock requests, automatic procurement, and seamless integration with Odoo's inventory, purchase, and manufacturing modules.
 
-In many organizations, employees need to request stock transfers to specific locations, but standard Odoo inventory operations require warehouse manager intervention for every transfer. The Stock Request module solves this by:
+<Info>
+Stock Request is part of the OCA (Odoo Community Association) stock-logistics-request repository and is actively maintained by ForgeFlow.
+</Info>
 
-- **Decentralizing stock requests** - Users can create their own requests without direct warehouse access
-- **Automating procurement** - Requests automatically trigger procurement rules based on the destination location
-- **Tracking request lifecycle** - From draft to completion, with full visibility into transfer status
-- **Enforcing permissions** - Role-based access ensures users only manage their own requests (unless they're managers)
-
-## Key Benefits
+## Key Features
 
 <CardGroup cols={2}>
-  <Card title="User Autonomy" icon="user">
-    Employees can request stock transfers without requiring warehouse manager privileges
+  <Card title="Internal Stock Requests" icon="box">
+    Create and manage requests for products that are frequently stocked by the company to be transferred to specific locations.
   </Card>
   
   <Card title="Automatic Procurement" icon="gears">
-    Requests automatically evaluate procurement rules for the selected location
+    Automatically evaluate requests using procurement rules for the selected location, triggering transfers, purchases, or manufacturing orders as needed.
   </Card>
   
-  <Card title="Full Traceability" icon="list-check">
-    Track requests from creation through confirmation to transfer completion
+  <Card title="Purchase Integration" icon="cart-shopping">
+    Seamlessly integrate with Odoo's Purchase module to automatically create purchase orders when stock is not available.
   </Card>
   
-  <Card title="Permission Control" icon="shield">
-    Two-tier permission system: Users manage their own requests, Managers oversee all
+  <Card title="MRP Integration" icon="industry">
+    Connect with Manufacturing (MRP) to automatically trigger production orders for requested products.
+  </Card>
+  
+  <Card title="Tier Validation" icon="check-double">
+    Support multi-level approval workflows for stock requests before they are processed.
+  </Card>
+  
+  <Card title="Kanban View" icon="columns">
+    Organize stock requests as orders with multiple line items for better organization and bulk processing.
   </Card>
 </CardGroup>
 
-## High-Level Architecture
+## How It Works
 
-The Stock Request framework consists of several core components:
+The Stock Request framework follows a simple yet powerful workflow:
 
-### Core Models
+<Steps>
+  <Step title="Create a Stock Request">
+    Users create a request specifying the product, quantity, and destination location.
+  </Step>
+  
+  <Step title="Confirm the Request">
+    Upon confirmation, the framework evaluates the request using procurement rules configured for the selected location.
+  </Step>
+  
+  <Step title="Automatic Processing">
+    Based on available stock and configured routes:
+    - If stock is available and "Check available stock first" is enabled, the system creates an internal transfer
+    - If stock needs to be procured, the system triggers the appropriate procurement method (purchase, manufacturing, or transfer)
+  </Step>
+  
+  <Step title="Track Progress">
+    Users can track the status of their requests and access related transfers, purchase orders, or manufacturing orders directly from the request.
+  </Step>
+</Steps>
 
-- **Stock Request** (`stock.request`) - Individual stock requests for specific products
-- **Stock Request Order** (`stock.request.order`) - Groups multiple requests together (optional)
-- **Stock Request Allocation** (`stock.request.allocation`) - Links requests to stock moves
-- **Procurement Integration** - Automatic procurement rule evaluation on confirmation
+## Use Cases
 
-### Request Lifecycle
+### Warehouse Operations
+- Departments requesting stock to be transferred from a central warehouse to their location
+- Replenishment of workstation inventory based on actual needs
+- Just-in-time material requests for production lines
 
-```mermaid
-stateDiagram-v2
-    [*] --> Draft
-    Draft --> Open: Confirm
-    Draft --> Cancelled: Cancel
-    Open --> Done: All Transfers Complete
-    Open --> Cancelled: Cancel
-    Done --> [*]
-    Cancelled --> [*]
-```
+### Multi-Location Management
+- Inter-warehouse transfers initiated by end-user departments
+- Branch office inventory requests from a central distribution center
+- Store replenishment requests in retail operations
+
+### Manufacturing
+- Production floor requests for raw materials
+- Component requests that trigger manufacturing of sub-assemblies
+- Quality control sample requests
+
+## Core Concepts
+
+### Stock Request States
+
+Each stock request progresses through the following states:
+
+- **Draft**: Initial state when the request is created
+- **In Progress**: Request is confirmed and procurement is in progress
+- **Done**: All requested quantities have been received
+- **Cancelled**: Request has been cancelled
+
+### User Roles
+
+<Tabs>
+  <Tab title="Stock Request User">
+    - Can view their own stock requests and those they're granted permission to follow
+    - Can create and update their own stock requests
+    - Limited to managing personal requests
+  </Tab>
+  
+  <Tab title="Stock Request Manager">
+    - Full access to all stock requests across the company
+    - Can manage all requests regardless of creator
+    - Has access to all configuration options
+    - Inherits Stock/User permissions
+  </Tab>
+</Tabs>
+
+### Stock Request vs Stock Request Order
+
+**Stock Request** (`stock.request`): A single line item requesting a specific product and quantity.
+
+**Stock Request Order** (`stock.request.order`): A container for multiple stock requests, allowing users to:
+- Group related requests together
+- Share common attributes (warehouse, location, expected date)
+- Process multiple requests with a single confirmation
+- Simplify bulk operations
 
 <Note>
-The module inherits from `mail.thread` and `mail.activity.mixin`, providing full email notification and activity tracking capabilities.
+The Stock Request Order functionality is optional and can be enabled in the settings by activating "Stock Request Order" mode.
 </Note>
 
-### State Definitions
+## Integration Capabilities
 
-- **Draft** - Request is being prepared, can be modified
-- **Open (In Progress)** - Request confirmed, procurement triggered, transfers may be in progress
-- **Done** - All requested quantities have been transferred
-- **Cancelled** - Request cancelled, pending stock moves also cancelled
+The Stock Request framework is designed to be modular and extensible:
 
-## Integration Points
+### Available Modules
 
-### Stock Operations
+| Module | Description |
+|--------|-------------|
+| `stock_request` | Core module providing base functionality |
+| `stock_request_purchase` | Automatic purchase order creation |
+| `stock_request_mrp` | Manufacturing order integration |
+| `stock_request_tier_validation` | Multi-level approval workflows |
+| `stock_request_kanban` | Enhanced order management with Kanban view |
+| `stock_request_submit` | Additional "Submitted" state for workflow control |
+| `stock_request_direction` | Specify direction (from/to warehouse) |
+| `stock_request_bom` | Bill of Materials integration |
 
-When a stock request is confirmed:
+## Benefits
 
-1. The system evaluates procurement rules for the destination location
-2. Stock moves are created based on available routes
-3. Transfers (pickings) are generated according to procurement rules
-4. Users can track transfer progress from the stock request
-
-### Optional Modules
-
-The base module can be extended with:
-
-- **stock_request_purchase** - Create purchase orders from stock requests
-- **stock_request_mrp** - Trigger manufacturing orders from stock requests
-- **stock_request_kanban** - Kanban workflow integration
-- **stock_request_bom** - Bill of Materials integration
-- **stock_request_tier_validation** - Multi-tier approval workflows
+<CardGroup cols={2}>
+  <Card title="Improved Visibility" icon="eye">
+    Track all internal stock movements from request to fulfillment in a centralized system.
+  </Card>
+  
+  <Card title="Reduced Lead Time" icon="clock">
+    Automate procurement decisions and trigger transfers immediately upon request confirmation.
+  </Card>
+  
+  <Card title="Better Planning" icon="calendar">
+    Expected dates help warehouse teams plan and prioritize fulfillment activities.
+  </Card>
+  
+  <Card title="Audit Trail" icon="file-lines">
+    Complete traceability of who requested what, when, and how it was fulfilled.
+  </Card>
+</CardGroup>
 
 ## Next Steps
 
-<CardGroup cols={2}>
+<CardGroup cols={3}>
   <Card title="Installation" icon="download" href="/installation">
     Learn how to install and set up the Stock Request module
   </Card>
   
   <Card title="Configuration" icon="gear" href="/configuration">
-    Configure user permissions and module settings
+    Configure routes, rules, and user permissions
   </Card>
   
   <Card title="Quick Start" icon="rocket" href="/quickstart">
-    Create your first stock request in minutes
-  </Card>
-  
-  <Card title="API Reference" icon="code" href="/api/stock-request">
-    Explore the complete API documentation
+    Create your first stock request and see it in action
   </Card>
 </CardGroup>
-
-## License
-
-This module is licensed under **LGPL-3.0** and is maintained by ForgeFlow and the Odoo Community Association (OCA).
-
-<Tip>
-The Stock Request module is part of the [OCA stock-logistics-request](https://github.com/OCA/stock-logistics-request) project on GitHub. Contributions are welcome!
-</Tip>

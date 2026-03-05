@@ -1,260 +1,598 @@
 ---
 title: Stock Request MRP
-description: Display and manage manufacturing orders created from stock requests
+description: Display and manage manufacturing orders generated from stock requests
 ---
 
-The Stock Request MRP module integrates stock requests with manufacturing, allowing users to view and manage manufacturing orders (MOs) that are automatically created when stock requests are confirmed.
+The `stock_request_mrp` module integrates stock requests with the manufacturing system, enabling users to track and manage manufacturing orders that are automatically created from confirmed stock requests.
 
 ## Overview
 
-This module enables users to display Manufacturing Orders that have been created as a consequence of Stock Requests. When a stock request is confirmed and procurement rules determine that manufacturing is required, the system generates the corresponding MO and provides direct access from the stock request.
+**Module Name**: `stock_request_mrp`  
+**Version**: 18.0.1.0.0  
+**License**: LGPL-3  
+**Dependencies**: `stock_request`, `mrp`  
+**Author**: ForgeFlow, OCA  
+**Maintainers**: [@LoisRForgeFlow](https://github.com/LoisRForgeFlow), [@etobella](https://github.com/etobella)  
+**Auto Install**: Yes (when both dependencies are met)
+
+<Info>
+This module enables visibility into manufacturing orders created as a consequence of stock requests, providing seamless integration between internal requests and production operations.
+</Info>
 
 ## Key Features
 
-- **Manufacturing Order Display**: View MOs generated from stock requests
-- **Direct Navigation**: Access manufacturing orders from stock request forms
-- **Automatic Integration**: Seamless connection with MRP system
-- **Production Tracking**: Monitor manufacturing progress from stock request context
-- **Smart Buttons**: Intuitive UI elements for accessing related MOs
+### Manufacturing Order Visibility
 
-## Dependencies
+- View manufacturing orders generated from stock requests
+- Smart button showing MO count on request form
+- Direct navigation from request to related MOs
+- Track MO status from stock request interface
 
-```python
-"depends": ["stock_request", "mrp"]
-```
+### Automatic Integration
 
-<Info>
-This module is marked as `auto_install: True`, meaning it installs automatically when both `stock_request` and `mrp` modules are present.
-</Info>
+- MOs created automatically via procurement rules
+- Stock request origin tracked on manufacturing orders
+- Bidirectional reference between requests and MOs
+- Updates propagate between requests and production
+
+### Order-Level Tracking
+
+- View all MOs from stock request orders
+- Consolidated manufacturing information
+- Track multiple requests fulfilled by same MO
+- Production planning based on requests
+
+### Post-Install Hook
+
+- Automatic configuration during installation
+- Links existing manufacturing orders to stock requests
+- Ensures data consistency
 
 ## Installation
 
-### Automatic Installation
+<Note>
+This module installs automatically when both `stock_request` and `mrp` modules are installed.
+</Note>
 
-The module installs automatically when:
-
-1. `stock_request` module is installed
-2. `mrp` (Manufacturing) module is installed
-3. You update the module list or restart Odoo
-
-### Manual Installation
-
-If needed, manually install:
-
-1. Navigate to **Apps**
-2. Search for "Stock Request MRP"
-3. Click **Install**
+<Steps>
+  <Step title="Install Prerequisites">
+    Ensure these modules are installed:
+    - `stock_request` (Stock Request)
+    - `mrp` (Manufacturing)
+  </Step>
+  
+  <Step title="Automatic Installation">
+    The module installs automatically due to `auto_install: True` setting.
+  </Step>
+  
+  <Step title="Post-Install Configuration">
+    The `post_init_hook` runs automatically to link existing data.
+  </Step>
+  
+  <Step title="Verify Installation">
+    Check that manufacturing order smart buttons appear on stock request forms.
+  </Step>
+</Steps>
 
 ## Configuration
 
-No specific configuration required. The module works automatically with your existing:
+### Product Configuration for Manufacturing
 
-- Bill of Materials (BOMs)
-- Manufacturing routes
-- Procurement rules
-- Work centers and routings
+For stock requests to generate manufacturing orders:
 
-<Note>
-Ensure your products have BOMs defined and manufacturing routes configured for the module to generate MOs.
-</Note>
+<Steps>
+  <Step title="Configure Product">
+    Go to **Inventory > Products > Products** and select a product.
+    
+    In the **Inventory** tab:
+    - Check **Can be Manufactured**
+    - Add **Manufacture** route
+  </Step>
+  
+  <Step title="Create Bill of Materials">
+    Go to **Manufacturing > Products > Bills of Materials**.
+    
+    Click **Create** and configure:
+    - **Product**: Select the manufactured product
+    - **Components**: Add component products with quantities
+    - **Operations**: Define manufacturing steps (optional)
+    - **BoM Type**: Manufacture this product
+  </Step>
+  
+  <Step title="Configure Routes">
+    Ensure the **Manufacture** route applies to relevant locations:
+    - Go to **Inventory > Configuration > Routes**
+    - Verify manufacture rule for destination locations
+  </Step>
+</Steps>
+
+### Warehouse Configuration
+
+Ensure warehouse is configured for manufacturing:
+
+```
+Inventory > Configuration > Warehouses
+└── Select Warehouse
+    ├── Manufacture: Enabled
+    └── Manufacturing Steps: 1, 2, or 3 steps
+```
 
 ## Usage
 
-### Creating Stock Requests that Trigger Manufacturing
+### Creating Request that Triggers Manufacturing
 
-1. Go to **Stock Requests > Stock Requests**
-2. Click **Create**
-3. Select a manufactured product (one with a BOM)
-4. Enter the quantity and destination location
-5. Click **Confirm**
+<Steps>
+  <Step title="Create Stock Request">
+    Go to **Stock Requests > Stock Requests** and click **Create**.
+    
+    Fill in:
+    - **Product**: Select a manufacturable product with BoM
+    - **Quantity**: Amount needed
+    - **Location**: Destination location
+    - **Expected Date**: When products are needed
+  </Step>
+  
+  <Step title="Confirm Request">
+    Click **Confirm**. The system evaluates procurement rules.
+  </Step>
+  
+  <Step title="View Created MO">
+    If procurement triggers manufacturing:
+    - Smart button **Manufacturing Orders** appears
+    - Shows count of related MOs
+    - Click to view manufacturing order(s)
+  </Step>
+  
+  <Step title="Track MO Status">
+    Monitor manufacturing order progress:
+    - View MO state (Draft, Confirmed, In Progress, Done)
+    - Check production status
+    - Track when products finished
+  </Step>
+</Steps>
 
-### Viewing Manufacturing Orders
+### Viewing Related Manufacturing Orders
 
-Once the stock request is confirmed:
+#### From Stock Request
 
-1. Open the confirmed stock request
-2. Look for the **Manufacturing Orders** smart button
-3. Click to view all related manufacturing orders
-4. Manage production directly from the MO or navigate to Manufacturing app
+1. Open a stock request
+2. Click the **Manufacturing Orders** smart button (shows count)
+3. View list of related MOs
+4. Click any MO to see production details
+
+#### From Stock Request Order
+
+1. Open a stock request order
+2. Click **Manufacturing Orders** smart button
+3. See all MOs generated from any request in the order
+4. Access consolidated production information
+
+### Managing Manufacturing Order Lifecycle
+
+<Accordion title="Draft MO Created">
+When stock request confirmed:
+- MO created in draft state
+- Contains finished product from request
+- Components listed based on BoM
+- Origin references stock request
+- Can be edited before confirmation
+</Accordion>
+
+<Accordion title="MO Confirmed">
+Production manager confirms MO:
+- Components reserved
+- Work orders created (if routing configured)
+- Production scheduled
+- Stock request tracks MO status
+</Accordion>
+
+<Accordion title="Production In Progress">
+During manufacturing:
+- Work orders completed
+- Components consumed
+- Finished products recorded
+- Stock request quantities update
+</Accordion>
+
+<Accordion title="MO Completed">
+When production finished:
+- Finished products moved to stock
+- Stock moves complete
+- Stock request done when fully manufactured
+</Accordion>
+
+## Data Models
+
+### Stock Request (Extended)
+
+Adds manufacturing order relationship:
+
+```python
+class StockRequest(models.Model):
+    _inherit = 'stock.request'
+    
+    mrp_production_ids = fields.One2many(
+        'mrp.production',
+        inverse_name='stock_request_id',
+        string='Manufacturing Orders',
+        readonly=True
+    )
+    
+    mrp_count = fields.Integer(
+        compute='_compute_mrp_production_ids',
+        string='Manufacturing Order Count'
+    )
+```
+
+### MRP Production (Extended)
+
+Tracks originating stock request:
+
+```python
+class MrpProduction(models.Model):
+    _inherit = 'mrp.production'
+    
+    stock_request_id = fields.Many2one(
+        'stock.request',
+        string='Stock Request',
+        readonly=True
+    )
+    
+    stock_request_ids = fields.Many2many(
+        'stock.request',
+        compute='_compute_stock_request_ids',
+        string='Stock Requests'
+    )
+```
+
+### Stock Request Order (Extended)
+
+Adds order-level manufacturing tracking:
+
+```python
+class StockRequestOrder(models.Model):
+    _inherit = 'stock.request.order'
+    
+    mrp_production_ids = fields.Many2many(
+        'mrp.production',
+        compute='_compute_mrp_production_ids',
+        string='Manufacturing Orders'
+    )
+    
+    mrp_count = fields.Integer(
+        compute='_compute_mrp_production_ids'
+    )
+```
+
+## Views
+
+### Stock Request Form View
+
+Enhanced with:
+
+```xml
+<!-- Smart button for manufacturing orders -->
+<button name="action_view_mrp_productions"
+        type="object"
+        class="oe_stat_button"
+        icon="fa-gears"
+        attrs="{'invisible': [('mrp_count', '=', 0)]}">
+    <field name="mrp_count" widget="statinfo" 
+           string="Manufacturing Orders"/>
+</button>
+```
+
+### Manufacturing Order Form View
+
+Enhanced with:
+
+- Stock request reference on production order
+- Origin field shows stock request name
+- Smart button to view related stock requests
+- Link back to originating request
+
+## Procurement Flow
+
+### Request to Manufacturing Flow
+
+```mermaid
+flowchart LR
+    A[Create Stock Request] --> B[Confirm Request]
+    B --> C{Evaluate Procurement Rules}
+    C -->|Manufacture Route| D[Create Manufacturing Order]
+    C -->|Other Route| E[Other Action]
+    D --> F[MO Draft]
+    F --> G[Confirm MO]
+    G --> H[Produce Products]
+    H --> I[Complete Request]
+```
+
+### Technical Flow
+
+<Steps>
+  <Step title="Request Confirmation">
+    User confirms stock request
+    ```python
+    stock_request.action_confirm()
+    ```
+  </Step>
+  
+  <Step title="Procurement Group">
+    Procurement group created and linked
+    ```python
+    procurement_group = env['procurement.group'].create({
+        'name': stock_request.name,
+        'stock_request_id': stock_request.id,
+    })
+    ```
+  </Step>
+  
+  <Step title="Run Procurement">
+    Procurement engine evaluates rules
+    ```python
+    env['procurement.group'].run([
+        Procurement(
+            product_id,
+            product_qty,
+            product_uom,
+            location_id,
+            ...
+        )
+    ])
+    ```
+  </Step>
+  
+  <Step title="MO Creation">
+    Manufacture rule triggers MO creation
+    ```python
+    production = env['mrp.production'].create({
+        'product_id': product.id,
+        'product_qty': qty,
+        'bom_id': bom.id,
+        'stock_request_id': stock_request.id,
+        'origin': stock_request.name,
+        ...
+    })
+    ```
+  </Step>
+</Steps>
+
+## Integration with BoM Module
+
+When used with `stock_request_bom`:
 
 <Info>
-The Manufacturing Orders button appears when the confirmation of the stock request results in an immediate manufacturing order.
+The BoM module allows you to auto-fill stock request lines based on a Bill of Materials, which can then trigger multiple manufacturing orders.
 </Info>
 
-### Complete Workflow
+### Combined Workflow
 
-```
-Stock Request → Confirm → Procurement → Manufacturing Order → Production → Done
-```
-
-1. **Create Stock Request**
-   - Product: Finished Good A
-   - Quantity: 50 units
-   - Location: WH/Stock
-
-2. **System Generates MO**
-   - Evaluates procurement rules
-   - Finds manufacturing route
-   - Creates Manufacturing Order with BOM components
-
-3. **View from Stock Request**
-   - Click MO smart button
-   - Review components, work orders
-   - Plan production
-
-4. **Complete Production**
-   - Process work orders
-   - Consume components
-   - Produce finished goods
-   - Stock request is fulfilled
-
-## Technical Details
-
-### Module Information
-
-- **Technical Name**: `stock_request_mrp`
-- **Version**: 18.0.1.0.0
-- **License**: LGPL-3
-- **Category**: Warehouse Management
-- **Author**: ForgeFlow, OCA
-- **Maintainers**: LoisRForgeFlow, etobella
-- **Auto Install**: Yes
-- **Post Init Hook**: Yes
-
-### Extended Views
-
-The module adds:
-
-- Manufacturing order smart buttons to stock request forms
-- MO count and access from stock request orders
-- Stock request reference in manufacturing order views
-- Related stock request links in MO forms
-
-### Post-Installation Processing
-
-The module includes a `post_init_hook` that:
-
-- Links existing manufacturing orders to stock requests
-- Ensures data consistency
-- Updates relationships for historical data
-
-## Integration Scenarios
-
-### Scenario 1: Simple Manufacturing
-
-```
-Stock Request → MO Created → Produce → Fulfill Request
-```
-
-- Single-level BOM
-- All components available
-- Direct production fulfills request
-
-### Scenario 2: Multi-Level BOM
-
-```
-Stock Request → MO for Product → Sub-MOs for Components → Production Chain
-```
-
-- Complex product structure
-- Multiple manufacturing orders created
-- All visible from original stock request
-
-### Scenario 3: Mixed Procurement
-
-```
-Stock Request → MO + Purchase Orders → Combined Fulfillment
-```
-
-- Some components manufactured
-- Other components purchased
-- Both visible from stock request (with purchase module)
+<Steps>
+  <Step title="Select Product BoM">
+    In stock request order, select product BoM and quantity.
+  </Step>
+  
+  <Step title="Auto-Fill Components">
+    System fills request lines with all BoM components.
+  </Step>
+  
+  <Step title="Confirm Order">
+    Confirmation triggers manufacturing for finished product and procurement for components.
+  </Step>
+  
+  <Step title="Track Production">
+    Monitor all related manufacturing orders from the request order.
+  </Step>
+</Steps>
 
 ## Best Practices
 
-### BOM Configuration
+### BoM Configuration
 
-- Maintain accurate and up-to-date BOMs
-- Define appropriate manufacturing routes
-- Set realistic lead times for production
-- Configure work centers for capacity planning
+<Tip>
+**Accurate BoMs**: Ensure Bills of Materials are accurate and up-to-date to avoid manufacturing errors.
+</Tip>
 
-### Stock Request Planning
+<Tip>
+**Component Availability**: Check component availability before confirming requests to avoid production delays.
+</Tip>
 
-- Consider manufacturing lead times when requesting
-- Account for component availability
-- Plan requests based on production capacity
-- Coordinate with production planners
+### Request Planning
 
-### Monitoring Production
+<Tip>
+**Lead Times**: Account for manufacturing lead time when setting expected dates on stock requests.
+</Tip>
 
-- Regularly check MO status from stock requests
-- Track production delays
-- Ensure component availability
-- Monitor work order progress
+<Tip>
+**Batch Production**: Group similar requests to optimize production scheduling and reduce setup times.
+</Tip>
 
-## Advanced Features
+### Route Configuration
 
-### Integration with Planning
+<Tip>
+**Make-to-Order**: Configure make-to-order route for products that should only be manufactured on demand via stock requests.
+</Tip>
 
-- Stock requests feed into production planning
-- MRP calculations consider requested quantities
-- Manufacturing schedules reflect stock request priorities
+<Tip>
+**Multi-Step Manufacturing**: Use multi-step manufacturing (pick components, manufacture, store) for better tracking.
+</Tip>
 
-### Component Procurement
+## Use Cases
 
-- Missing components may trigger additional stock requests
-- Cascade effect for multi-level BOMs
-- Automatic purchase or manufacturing of components
+### Made-to-Order Production
+
+**Scenario**: Custom or semi-custom products manufactured only when requested.
+
+**Configuration**:
+- Set Manufacture route on product
+- Create BoM with required components
+- Stock requests trigger manufacturing automatically
+
+**Benefit**: No overproduction, items made exactly when needed.
+
+### Kitting Operations
+
+**Scenario**: Assembling kits from individual components.
+
+**Configuration**:
+- Create kit product with BoM type "Kit"
+- Components listed in BoM
+- Stock request for kit triggers assembly MO
+
+**Benefit**: Track kit assembly as manufacturing operation.
+
+### Subassembly Production
+
+**Scenario**: Multi-level BoMs where subassemblies must be manufactured.
+
+**Configuration**:
+- Create nested BoMs (finished product > subassemblies > components)
+- Stock request for finished product
+- System creates MOs for subassemblies as needed
+
+**Benefit**: Automatic cascading manufacturing orders.
 
 ## Troubleshooting
 
-### MO Not Created
+### No MO Created After Confirmation
 
-<Warning>
-If no manufacturing order is created, verify:
-</Warning>
+**Problem**: Stock request confirmed but no manufacturing order generated.
 
-- Product has an active BOM
-- Manufacturing route is configured
-- Procurement rules point to production
-- Product is set to "Can be manufactured"
+**Solutions**:
+1. Verify product has **Can be Manufactured** checked
+2. Ensure **Manufacture** route is active on product
+3. Check that a valid BoM exists for the product
+4. Verify procurement rules exist for destination location
+5. Review product routes apply to requested location
+6. Check BoM is not archived or expired
 
-### Cannot View MOs
+### Wrong BoM Selected
 
-Ensure:
+**Problem**: MO created with unexpected BoM.
 
-- You have access rights to Manufacturing app
-- MOs were created (check in Manufacturing menu)
-- Module is installed and updated
+**Solutions**:
+1. Check if multiple BoMs exist for the product
+2. Review BoM priorities and applicability rules
+3. Verify BoM company and location restrictions
+4. Ensure correct BoM marked as primary
 
-## Integration with Other Modules
+### Component Shortages
+
+**Problem**: Cannot start production due to missing components.
+
+**Solutions**:
+1. Check component availability before confirming request
+2. Use stock request orders to request components first
+3. Configure safety stock for common components
+4. Set up automatic component procurement
+
+### MO Quantity Incorrect
+
+**Problem**: Manufacturing order quantity doesn't match request.
+
+**Solutions**:
+1. Check rounding settings on product UoM
+2. Review BoM quantity calculations
+3. Verify no minimum/maximum lot size configured
+4. Check if multiple requests consolidated into one MO
+
+## Advanced Features
+
+### Work Order Integration
+
+When manufacturing uses work orders:
+
+1. MO created with work orders from routing
+2. Each operation tracked separately
+3. Stock request updated as operations complete
+4. Quality checks can be enforced
+
+### Backorder Handling
+
+When production split into backorders:
+
+1. Original MO partially completed
+2. Backorder MO created for remaining quantity
+3. Both MOs linked to stock request
+4. Request done only when all MOs complete
+
+### Quality Control
+
+Integration with quality module:
+
+1. Quality checks defined in BoM or routing
+2. Checks must pass before MO completion
+3. Failed checks can block stock request fulfillment
+4. Quality alerts visible from stock request
+
+## Integration Examples
+
+### Programmatic MO Access
+
+```python
+# Get all MOs from a stock request
+stock_request = env['stock.request'].browse(request_id)
+manufacturing_orders = stock_request.mrp_production_ids
+
+for mo in manufacturing_orders:
+    print(f"MO: {mo.name}, State: {mo.state}, Qty: {mo.product_qty}")
+    print(f"Components: {', '.join(mo.move_raw_ids.mapped('product_id.name'))}")
+```
+
+### Finding Requests from MO
+
+```python
+# Get stock request that generated an MO
+production = env['mrp.production'].browse(mo_id)
+stock_request = production.stock_request_id
+
+if stock_request:
+    print(f"Request: {stock_request.name}")
+    print(f"Requested by: {stock_request.requested_by.name}")
+    print(f"Expected: {stock_request.expected_date}")
+```
+
+### Monitoring Production Status
+
+```python
+# Check production status for all open stock requests
+open_requests = env['stock.request'].search([('state', '=', 'open')])
+
+for request in open_requests:
+    if request.mrp_production_ids:
+        mo_states = request.mrp_production_ids.mapped('state')
+        print(f"Request {request.name}: MO states {mo_states}")
+```
+
+## Related Modules
 
 <CardGroup cols={2}>
   <Card title="Stock Request Core" icon="box" href="/modules/core">
     Base functionality for stock requests
   </Card>
   
-  <Card title="Stock Request BOM" icon="list-tree" href="/modules/bom">
-    Create requests from BOMs directly
-  </Card>
-  
   <Card title="Stock Request Purchase" icon="shopping-cart" href="/modules/purchase">
-    View both MOs and POs from requests
+    Similar integration for purchase orders
   </Card>
   
-  <Card title="Stock Request Kanban" icon="columns" href="/modules/kanban">
-    Trigger manufacturing from kanban cards
+  <Card title="Stock Request BoM" icon="list-tree" href="/modules/bom">
+    Auto-fill requests based on Bill of Materials
+  </Card>
+  
+  <Card title="Manufacturing Module" icon="book" href="https://www.odoo.com/documentation/18.0/applications/inventory_and_mrp/manufacturing.html">
+    Odoo standard manufacturing documentation
   </Card>
 </CardGroup>
 
-## Support
+## Performance Considerations
 
-For issues and feature requests:
+<Note>
+The post-install hook processes existing manufacturing orders to link them with stock requests. For databases with many MOs, this may take some time during installation.
+</Note>
 
-- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
-- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_request_mrp)
+### Optimization Tips
 
-<Info>
-Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
-</Info>
+1. **BoM Structure**: Keep BoMs as simple as possible
+2. **Component Availability**: Ensure components are available before confirming requests
+3. **Batch Processing**: Group similar requests to reduce number of MOs
+4. **Route Configuration**: Optimize routes to avoid unnecessary procurement steps

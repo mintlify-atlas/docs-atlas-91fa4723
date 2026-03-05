@@ -1,429 +1,727 @@
 ---
 title: Stock Return Request
-description: Return stock to suppliers, customers, or internal locations by reverting pickings
+description: Return stock to suppliers, customers, or internal locations
 ---
 
-The Stock Return Request module enables returning stock from a location to suppliers, customers, or internal locations by reverting the corresponding pickings. This provides a structured way to handle returns, defects, and inventory corrections.
+The `stock_return_request` module enables the management of stock returns from any location, allowing returns to suppliers, customers, or internal locations by reverting corresponding pickings.
 
 ## Overview
 
-This module allows comprehensive return management for various scenarios: returning defective products to suppliers, processing customer returns, or transferring stock between internal locations. It reverses the original picking operations while maintaining traceability.
+**Module Name**: `stock_return_request`  
+**Version**: 18.0.1.0.1  
+**License**: AGPL-3  
+**Dependencies**: `stock`  
+**Author**: Tecnativa, OCA  
+**Category**: Stock
+
+<Info>
+This module provides a comprehensive system for managing stock returns to suppliers, customers, or internal locations by creating reverse pickings that revert previous transfers.
+</Info>
 
 ## Key Features
 
-- **Multiple Return Types**: Return to suppliers, customers, or internal locations
-- **Picking Reversal**: Automatically reverses original picking operations
-- **Return Tracking**: Complete traceability of return operations
-- **Quantity Management**: Track returnable quantities on stock moves
-- **Return Suggestions**: Wizard to suggest returnable items
-- **Return Reports**: Printable return documentation
-- **Integration**: Works with standard Odoo inventory workflows
+### Return Management
 
-## Dependencies
+- Return stock to suppliers (purchase returns)
+- Return stock to customers (customer returns)
+- Return stock to internal locations
+- Reverse corresponding pickings automatically
+- Track returnable quantities
 
-```python
-"depends": ["stock"]
-```
+### Returnable Quantity Tracking
 
-<Note>
-This module only requires the core `stock` module and does not depend on the stock_request framework.
-</Note>
+- New field `qty_returnable` on stock moves
+- Automatically computed based on move history
+- Considers already returned quantities
+- Prevents over-returning
+
+### Flexible Return Creation
+
+- Create returns from multiple sources
+- Select specific products and quantities
+- Suggest returnable products automatically
+- Group returns by partner or location
+
+### Return Reporting
+
+- Print return documentation
+- Track return history
+- Analyze return patterns
+- Report generation for returns
 
 ## Installation
 
 <Warning>
-Installation involves computing the new `qty_returnable` field for all stock moves, which can be a heavy task depending on the number of moves in your database.
+**Heavy Installation**: The installation computes `qty_returnable` for all existing stock moves, which can be time-consuming for large databases.
 </Warning>
 
-### Installation Steps
-
-1. Backup your database (recommended)
-2. Install from Apps menu
-3. Wait for initial computation to complete
-4. Verify installation in logs
-
-<Info>
-For large databases, consider installing during low-usage periods.
-</Info>
+<Steps>
+  <Step title="Backup Database">
+    Create a database backup before installation.
+  </Step>
+  
+  <Step title="Install During Low Activity">
+    Schedule installation during off-peak hours due to computation time.
+  </Step>
+  
+  <Step title="Install Module">
+    Navigate to **Apps**, search for "Stock Return Request", and click **Install**.
+  </Step>
+  
+  <Step title="Wait for Completion">
+    The installation hook computes returnable quantities for existing moves. This may take time.
+  </Step>
+</Steps>
 
 ## Configuration
 
-No specific configuration is required. The module works out-of-the-box with standard Odoo inventory operations.
+No specific configuration required. The module works out of the box.
 
-### Access Rights
+### Optional Configuration
 
-Ensure users have appropriate permissions:
+Configure return reasons (optional):
 
-- **Stock / User**: Create and manage own returns
-- **Stock / Manager**: Manage all returns
+```
+Inventory > Configuration > Return Reasons
+└── Create reasons like:
+    ├── Defective Product
+    ├── Wrong Product Shipped
+    ├── Customer Mistake
+    └── Excess Inventory
+```
 
 ## Usage
 
 ### Creating a Return Request
 
-1. Navigate to **Inventory > Operations > Return Request**
-2. Click **Create**
-3. Select the return type:
-   - Return to Supplier
-   - Return from Customer
-   - Internal Location Return
-4. Fill in the required information
-5. Select products and quantities to return
-6. Click **Confirm**
+<Steps>
+  <Step title="Navigate to Returns">
+    Go to **Inventory > Operations > Return Request** and click **Create**.
+  </Step>
+  
+  <Step title="Select Return Type">
+    Choose the type of return:
+    - **To Supplier**: Returning to a supplier
+    - **To Customer**: Returning to a customer (rare)
+    - **Internal**: Internal location return
+  </Step>
+  
+  <Step title="Select Partner/Location">
+    Depending on return type:
+    - **Supplier Returns**: Select supplier
+    - **Customer Returns**: Select customer
+    - **Internal Returns**: Select location
+  </Step>
+  
+  <Step title="Add Return Lines">
+    Add products to return:
+    - Click **Add a line**
+    - Select product
+    - Enter quantity to return
+    - Verify quantity is within returnable amount
+    - Add return reason (optional)
+  </Step>
+  
+  <Step title="Or Use Suggestion Wizard">
+    Click **Suggest Products** to automatically:
+    - List returnable products from selected partner
+    - Show returnable quantities
+    - Quick-add products to return
+  </Step>
+  
+  <Step title="Confirm Return">
+    Click **Confirm** to create return picking.
+  </Step>
+  
+  <Step title="Process Return">
+    Process the created picking:
+    - Validate quantities
+    - Mark as done
+    - Products returned to stock
+  </Step>
+</Steps>
 
-### Return to Supplier
+### Returning to Supplier
 
-**Use Case**: Return defective or excess items to a supplier
+**Scenario**: Defective products received from supplier.
 
-1. Go to **Inventory > Operations > Return Request**
-2. Click **Create**
-3. Select **Return to Supplier**
-4. Choose the supplier
-5. Select items to return:
-   - Can select from received items
-   - System shows returnable quantity
-6. Enter reason for return
-7. Click **Confirm**
-8. Process the return picking
+<Steps>
+  <Step title="Create Return Request">
+    Go to **Inventory > Operations > Return Request**.
+  </Step>
+  
+  <Step title="Configure">
+    - **Return Type**: To Supplier
+    - **Supplier**: Select the vendor
+    - **Reason**: Defective Product
+  </Step>
+  
+  <Step title="Add Products">
+    Add the defective products and quantities.
+  </Step>
+  
+  <Step title="Confirm">
+    Confirm to create outgoing picking to supplier.
+  </Step>
+  
+  <Step title="Ship Products">
+    Process the picking to ship products back.
+  </Step>
+</Steps>
 
-<Info>
-The system creates a return picking that reverses the original receipt.
-</Info>
+### Returning to Customer
 
-### Return from Customer
+**Scenario**: Return product delivered to wrong customer.
 
-**Use Case**: Process customer returns (defects, wrong items, etc.)
+<Steps>
+  <Step title="Create Return Request">
+    Create new return request.
+  </Step>
+  
+  <Step title="Configure">
+    - **Return Type**: To Customer
+    - **Customer**: Select the customer
+    - **Reason**: Wrong Delivery
+  </Step>
+  
+  <Step title="Add Products">
+    Add products to return to customer.
+  </Step>
+  
+  <Step title="Process">
+    Confirm and process delivery back to customer.
+  </Step>
+</Steps>
 
-1. Go to **Inventory > Operations > Return Request**
-2. Click **Create**
-3. Select **Return from Customer**
-4. Choose the customer
-5. Optionally link to original delivery
-6. Add products being returned
-7. Specify return reason
-8. Click **Confirm**
-9. Receive the returned goods
+### Internal Location Returns
 
-### Internal Location Return
+**Scenario**: Return excess stock from production floor to warehouse.
 
-**Use Case**: Move stock back to a previous location
+<Steps>
+  <Step title="Create Return Request">
+    Create new internal return request.
+  </Step>
+  
+  <Step title="Configure">
+    - **Return Type**: Internal
+    - **From Location**: Production floor
+    - **To Location**: Main warehouse
+  </Step>
+  
+  <Step title="Add Products">
+    Add products to return.
+  </Step>
+  
+  <Step title="Process Transfer">
+    Confirm and process internal transfer.
+  </Step>
+</Steps>
 
-1. Go to **Inventory > Operations > Return Request**
-2. Click **Create**
-3. Select **Internal Return**
-4. Choose source and destination locations
-5. Select products to return
-6. Specify quantities
-7. Click **Confirm**
-8. Process the internal transfer
+### Using Suggest Return Wizard
 
-## Returnable Quantity
+Quickly create returns from previous deliveries:
 
-The module adds a `qty_returnable` field to stock moves:
+<Steps>
+  <Step title="Open Return Request">
+    Create new return request and select partner.
+  </Step>
+  
+  <Step title="Click Suggest Products">
+    Click **Suggest Products** button.
+  </Step>
+  
+  <Step title="Review Suggestions">
+    Wizard shows:
+    - All products delivered to/from partner
+    - Returnable quantity for each product
+    - Original delivery reference
+  </Step>
+  
+  <Step title="Select Products">
+    Check products to include in return.
+  </Step>
+  
+  <Step title="Adjust Quantities">
+    Modify quantities if not returning full amount.
+  </Step>
+  
+  <Step title="Add to Return">
+    Click **Add to Return** to populate return lines.
+  </Step>
+</Steps>
 
-- **Calculation**: Based on original move quantity minus already returned
-- **Updates**: Recalculated when returns are processed
-- **Visibility**: Shows in move details
-- **Validation**: System prevents over-returns
+## Data Models
 
-<Warning>
-You cannot return more than the returnable quantity for a move.
-</Warning>
-
-## Return Suggestion Wizard
-
-For easier return creation:
-
-1. Open a completed picking/delivery
-2. Click **Suggest Return**
-3. System shows returnable items from that picking
-4. Select items to return
-5. Adjust quantities if needed
-6. Click **Create Return Request**
-
-<Info>
-The wizard pre-fills all information from the original picking.
-</Info>
-
-## Technical Details
-
-### Module Information
-
-- **Technical Name**: `stock_return_request`
-- **Version**: 18.0.1.0.1
-- **License**: AGPL-3
-- **Category**: Stock
-- **Author**: Tecnativa, OCA
-
-### Models Added
-
-#### stock.return.request
+### Stock Return Request (`stock.return.request`)
 
 Main model for return requests:
 
-- `partner_id` - Supplier or customer
-- `picking_id` - Original picking to reverse
-- `location_id` - Source location
-- `location_dest_id` - Destination location
-- `line_ids` - Return request lines
-- `state` - Draft, Confirmed, Done, Cancelled
-- `return_picking_ids` - Generated return pickings
-
-#### stock.return.request.line
-
-Return line items:
-
-- `product_id` - Product to return
-- `quantity` - Return quantity
-- `uom_id` - Unit of measure
-- `move_id` - Original stock move
-- `reason` - Return reason
-
-### Fields Added to Stock Move
-
-- `qty_returnable` - Computed field for returnable quantity
-- `qty_returned` - Total quantity already returned
-- `return_move_ids` - One2many to return moves
-
-### Reports Included
-
-- Return request form
-- Return delivery slip
-- Return receipt
-
-## Known Issues / Roadmap
-
-<Warning>
-Products are returned in the default product UoM. UoM conversions are not yet supported.
-</Warning>
-
-### Current Limitations
-
-- No UoM conversion support
-- All returns use product's default UoM
-- Manual conversion needed for different UoMs
-
-### Workaround
-
-For different UoMs:
-
-1. Calculate equivalent in default UoM
-2. Enter quantity in default UoM
-3. Document actual UoM in notes
-
-### Planned Improvements
-
-- Full UoM conversion support
-- Batch return processing
-- Return authorization workflow
-- Return cost tracking
-- Integration with quality control
-
-## Workflow Examples
-
-### Defective Product Return
-
-```
-Receive Goods → Quality Check → Found Defective → Create Return Request → Ship Back to Supplier
+```python
+class StockReturnRequest(models.Model):
+    _name = 'stock.return.request'
+    _description = 'Stock Return Request'
+    
+    name = fields.Char(          # Return reference
+        string='Reference',
+        required=True,
+        default='/',
+    )
+    
+    partner_id = fields.Many2one(  # Partner (supplier/customer)
+        'res.partner',
+        string='Partner'
+    )
+    
+    return_type = fields.Selection([
+        ('supplier', 'To Supplier'),
+        ('customer', 'To Customer'),
+        ('internal', 'Internal'),
+    ], string='Return Type',
+       required=True)
+    
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('confirmed', 'Confirmed'),
+        ('done', 'Done'),
+        ('cancel', 'Cancelled'),
+    ], default='draft')
+    
+    line_ids = fields.One2many(    # Return lines
+        'stock.return.request.line',
+        'return_id',
+        string='Products to Return'
+    )
+    
+    picking_ids = fields.One2many( # Generated pickings
+        'stock.picking',
+        'return_request_id',
+        string='Return Pickings'
+    )
 ```
 
-1. Receive products from supplier
-2. Quality control finds defects
-3. Create return request for defective items
-4. System generates return picking
-5. Ship back to supplier
-6. Track return status
+### Stock Return Request Line (`stock.return.request.line`)
 
-### Customer Return Processing
+Return request line items:
+
+```python
+class StockReturnRequestLine(models.Model):
+    _name = 'stock.return.request.line'
+    
+    return_id = fields.Many2one(   # Parent return request
+        'stock.return.request'
+    )
+    
+    product_id = fields.Many2one(  # Product to return
+        'product.product',
+        required=True
+    )
+    
+    product_qty = fields.Float(    # Quantity to return
+        string='Quantity',
+        required=True
+    )
+    
+    product_uom_id = fields.Many2one(  # Unit of measure
+        'uom.uom'
+    )
+    
+    qty_returnable = fields.Float( # Max returnable qty
+        compute='_compute_qty_returnable'
+    )
+    
+    move_id = fields.Many2one(     # Original stock move
+        'stock.move',
+        string='Original Move'
+    )
+    
+    reason = fields.Text(          # Return reason
+        string='Reason'
+    )
+```
+
+### Stock Move (Extended)
+
+Adds returnable quantity tracking:
+
+```python
+class StockMove(models.Model):
+    _inherit = 'stock.move'
+    
+    qty_returnable = fields.Float(
+        string='Returnable Quantity',
+        compute='_compute_qty_returnable',
+        store=True,
+        help='Quantity that can still be returned'
+    )
+    
+    @api.depends('product_uom_qty', 'returned_move_ids')
+    def _compute_qty_returnable(self):
+        for move in self:
+            # Calculate: original qty - already returned qty
+            returned_qty = sum(
+                move.returned_move_ids.mapped('product_uom_qty')
+            )
+            move.qty_returnable = move.product_uom_qty - returned_qty
+```
+
+## Views and Menus
+
+### Menu Structure
 
 ```
-Customer Request → Authorize Return → Receive Item → Inspect → Refund/Replace
+Inventory
+├── Operations
+│   ├── Return Request
+│   │   ├── All Returns
+│   │   ├── Supplier Returns
+│   │   ├── Customer Returns
+│   │   └── Internal Returns
+└── Reporting
+    └── Return Analysis
 ```
 
-1. Customer contacts about return
-2. Create return request
-3. Provide return authorization to customer
-4. Receive returned item
-5. Inspect condition
-6. Process refund or replacement
+### Available Views
 
-### Inventory Correction
+- **Tree View**: List of return requests
+- **Form View**: Detailed return form with lines
+- **Pivot View**: Return analysis and reporting
+- **Graph View**: Return trends and statistics
 
+## Wizards
+
+### Suggest Return Request Wizard
+
+**Model**: `suggest.return.request`
+
+Automatically suggests products that can be returned:
+
+```python
+class SuggestReturnRequest(models.TransientModel):
+    _name = 'suggest.return.request'
+    
+    return_id = fields.Many2one(     # Target return request
+        'stock.return.request'
+    )
+    
+    line_ids = fields.One2many(      # Suggested products
+        'suggest.return.request.line',
+        'wizard_id'
+    )
+    
+    def action_suggest(self):
+        """Find returnable products for selected partner"""
+        # Query stock moves from/to partner
+        # Calculate returnable quantities
+        # Create wizard lines
+        
+    def action_add_to_return(self):
+        """Add selected products to return request"""
+        # Create return request lines
+        # From selected wizard lines
 ```
-Wrong Location → Create Internal Return → Transfer Back → Correct Location
-```
 
-1. Discover stock in wrong location
-2. Create internal return request
-3. Generate transfer
-4. Move stock back to correct location
-5. Update inventory records
+## Reports
+
+### Stock Return Report
+
+**Template**: `stock_return_report.xml`
+
+Printable return document includes:
+- Return request reference
+- Partner information
+- Return type and reason
+- List of products with quantities
+- Original delivery references
+- Return authorization details
+
+### Return Analysis Report
+
+Analyze return patterns:
+- Returns by partner
+- Returns by product
+- Return reasons breakdown
+- Return value analysis
+- Trends over time
+
+## Use Cases
+
+### Defective Product Returns
+
+**Scenario**: Quality control finds defective products from supplier.
+
+<Steps>
+  <Step title="Quality Issue Identified">
+    QC team identifies defective batch.
+  </Step>
+  
+  <Step title="Create Return">
+    Create return request to supplier with reason "Defective".
+  </Step>
+  
+  <Step title="Add Products">
+    Add defective products with quantities.
+  </Step>
+  
+  <Step title="Get Authorization">
+    Contact supplier for return authorization (RMA).
+  </Step>
+  
+  <Step title="Process Return">
+    Confirm return and ship products back.
+  </Step>
+  
+  <Step title="Track Refund">
+    Link return to vendor credit or refund.
+  </Step>
+</Steps>
+
+### Customer Returns Processing
+
+**Scenario**: Customer returns products (RMA process).
+
+<Steps>
+  <Step title="Customer Requests Return">
+    Customer contacts support for return.
+  </Step>
+  
+  <Step title="Issue RMA">
+    Create return request with RMA number.
+  </Step>
+  
+  <Step title="Customer Ships">
+    Customer ships products back.
+  </Step>
+  
+  <Step title="Receive Return">
+    Process incoming return picking.
+  </Step>
+  
+  <Step title="Inspect Products">
+    QC inspects returned products.
+  </Step>
+  
+  <Step title="Process Refund">
+    Issue credit note or refund to customer.
+  </Step>
+</Steps>
+
+### Excess Inventory Returns
+
+**Scenario**: Return excess inventory from workstation to warehouse.
+
+<Steps>
+  <Step title="Identify Excess">
+    Workstation has excess materials.
+  </Step>
+  
+  <Step title="Create Internal Return">
+    Create internal return request.
+  </Step>
+  
+  <Step title="Transfer Products">
+    Move products from workstation to warehouse.
+  </Step>
+  
+  <Step title="Update Inventory">
+    Inventory updated in both locations.
+  </Step>
+</Steps>
 
 ## Best Practices
 
-### Documentation
+### Return Authorization
 
-- Always document return reasons
-- Attach photos for damaged items
-- Reference original order/delivery
-- Include any correspondence
+<Tip>
+**Get RMA First**: Always obtain return authorization (RMA) from supplier before shipping returns.
+</Tip>
 
-### Quality Control
+<Tip>
+**Document Reasons**: Clearly document return reasons for tracking and analysis.
+</Tip>
 
-- Inspect items before accepting returns
-- Document condition of returned goods
-- Photograph defects or damage
-- Update quality records
+### Quantity Verification
+
+<Tip>
+**Check Returnable Qty**: Always verify quantity to return doesn't exceed returnable amount.
+</Tip>
+
+<Tip>
+**Physical Count**: Perform physical count before creating return to ensure accuracy.
+</Tip>
 
 ### Process Management
 
-- Establish clear return policies
-- Set time limits for returns
-- Define authorization requirements
-- Track return metrics
+<Tip>
+**Standardize Process**: Create standard procedures for different return types.
+</Tip>
 
-### Inventory Management
+<Tip>
+**Track Timelines**: Set and monitor timelines for return processing.
+</Tip>
 
-- Segregate returned items
-- Quarantine for inspection
-- Update stock valuation
-- Track return costs
+### Quality Control
 
-## Return Reasons
+<Tip>
+**Inspect Before Return**: Inspect products before returning to supplier to verify defect.
+</Tip>
 
-Common return reasons to track:
+<Tip>
+**Photo Documentation**: Take photos of defective products for records.
+</Tip>
 
-- Defective product
-- Wrong item shipped
-- Damaged in transit
-- Customer changed mind
-- Excess quantity
-- Quality issues
-- End of project
-- Product recall
+## Known Issues and Roadmap
 
-<Info>
-Consider customizing return reasons based on your business needs.
-</Info>
+<Warning>
+**UoM Limitation**: Products are returned in the default product UoM. UoM conversions are not currently implemented.
+</Warning>
 
-## Reporting and Analytics
+### Workaround for UoM
 
-### Useful Reports
+If you need to return in different UoM:
 
-- Returns by supplier
-- Returns by product
-- Return rate by customer
-- Return reasons analysis
-- Return processing time
-- Cost of returns
-
-### KPIs to Track
-
-- Return rate percentage
-- Average return processing time
-- Return cost per period
-- Top returned products
-- Supplier return trends
-- Customer return patterns
+1. Calculate equivalent quantity in default UoM
+2. Create return with calculated quantity
+3. Manually note the original UoM in return reason/notes
 
 ## Troubleshooting
 
-### Cannot Create Return
+### Cannot Return Quantity
 
-<Warning>
-Common issues:
-</Warning>
+**Problem**: System prevents returning desired quantity.
 
-- Original picking not found
-- No returnable quantity available
-- Already fully returned
-- Picking not in Done state
+**Solutions**:
+1. Check `qty_returnable` on original move
+2. Verify products were actually received/delivered
+3. Check if partial returns already made
+4. Ensure move is in done state
+5. Verify no other pending returns for same move
 
-### Returnable Quantity is Zero
+### No Returnable Products in Suggestion
 
-Possible causes:
+**Problem**: Suggest wizard shows no products.
 
-- Items already fully returned
-- Original move was cancelled
-- Return period expired (if configured)
-- Product configuration issues
+**Solutions**:
+1. Verify partner has completed deliveries/receipts
+2. Check if all quantities already returned
+3. Ensure moves are in done state
+4. Review move history for selected partner
 
 ### Return Picking Not Created
 
-Check:
+**Problem**: Confirming return doesn't create picking.
 
-- Return request is confirmed
-- Quantities are valid
-- Locations are accessible
-- Routes are configured
-- User has appropriate rights
+**Solutions**:
+1. Verify return lines have quantities
+2. Check warehouse configuration
+3. Review picking types exist for return type
+4. Check logs for errors
 
-## Integration Scenarios
+### Wrong Returnable Quantity
 
-### With Purchase Module
+**Problem**: `qty_returnable` shows unexpected value.
 
-```
-Purchase → Receipt → Quality Issue → Return Request → Vendor Credit
-```
-
-- Link returns to purchase orders
-- Track vendor credit notes
-- Update PO quantities
-- Vendor performance metrics
-
-### With Sales Module
-
-```
-Sale Order → Delivery → Customer Return → Return Request → Credit Note
+**Solutions**:
+1. Check original move quantity
+2. Review previous return history
+3. Verify returned moves linked correctly
+4. Recalculate returnable quantities:
+```python
+env['stock.move'].search([])._compute_qty_returnable()
 ```
 
-- Process RMA (Return Merchandise Authorization)
-- Issue customer refunds
-- Track return reasons
-- Customer satisfaction metrics
+## Advanced Features
 
-### With Quality Control
+### Custom Return Workflows
 
+Extend return process with custom logic:
+
+```python
+class StockReturnRequest(models.Model):
+    _inherit = 'stock.return.request'
+    
+    def action_confirm(self):
+        # Custom validation
+        for return_request in self:
+            if return_request.return_type == 'supplier':
+                # Require RMA number for supplier returns
+                if not return_request.rma_number:
+                    raise UserError("RMA number required for supplier returns.")
+        
+        return super().action_confirm()
 ```
-Receipt → QC Check → Fail → Return Request → Supplier Return
+
+### Return Analytics
+
+Query return data for analysis:
+
+```python
+# Find most returned products
+returns = env['stock.return.request.line'].read_group(
+    domain=[('return_id.state', '=', 'done')],
+    fields=['product_id', 'product_qty'],
+    groupby=['product_id'],
+    orderby='product_qty desc',
+    limit=10
+)
+
+# Returns by supplier
+supplier_returns = env['stock.return.request'].search([
+    ('return_type', '=', 'supplier'),
+    ('state', '=', 'done'),
+])
 ```
 
-- Integrate with quality checks
-- Automatic return creation on QC failure
-- Defect tracking
-- Supplier quality metrics
+### Integration with Quality Module
 
-## Customization Ideas
+Link returns with quality checks:
 
-### Return Authorization
+```python
+class StockReturnRequest(models.Model):
+    _inherit = 'stock.return.request'
+    
+    quality_check_ids = fields.One2many(
+        'quality.check',
+        'return_request_id',
+        string='Quality Checks'
+    )
+    
+    def action_confirm(self):
+        # Create quality check for return inspection
+        super().action_confirm()
+        for line in self.line_ids:
+            self.env['quality.check'].create({
+                'product_id': line.product_id.id,
+                'return_request_id': self.id,
+                'test_type': 'inspection',
+            })
+```
 
-- Add approval workflow
-- Require manager authorization
-- Set value thresholds
-- Customer return limits
+## Related Documentation
 
-### Cost Tracking
+<CardGroup cols={2}>
+  <Card title="Stock Module" icon="box" href="https://www.odoo.com/documentation/18.0/applications/inventory_and_mrp/inventory.html">
+    Odoo standard stock management
+  </Card>
+  
+  <Card title="Stock Request Core" icon="box" href="/modules/core">
+    Internal stock requests (different from returns)
+  </Card>
+</CardGroup>
 
-- Track return shipping costs
-- Restocking fees
-- Inspection costs
-- Total cost of returns
+<Note>
+Stock Return Request is independent from the Stock Request modules - it doesn't require `stock_request` to be installed.
+</Note>
 
-### Advanced Features
+## Contributors
 
-- Return reason categories
-- Photo attachments
-- Barcode scanning
-- Return labels printing
-- Automatic supplier notifications
+Developed by:
 
-## Support
+- **Tecnativa** (Primary development)
+  - Sergio Teruel
+  - Pedro M. Baeza
+  - David Vidal
+  - César A. Sánchez
+  - Carlos Lopez
 
-For issues and feature requests:
-
-- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
-- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request/tree/18.0/stock_return_request)
-
-<Info>
-Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
-</Info>
+- **Pro Thai Technology**
+  - Prapassorn Sornkaew

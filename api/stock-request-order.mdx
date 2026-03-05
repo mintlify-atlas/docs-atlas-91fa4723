@@ -1,581 +1,708 @@
 ---
-title: stock.request.order
-description: API reference for the stock.request.order model in Stock Request framework
+title: 'stock.request.order'
+description: 'Container model for grouping multiple stock requests with unified settings'
 ---
 
 ## Overview
 
-The `stock.request.order` model represents a collection of stock requests grouped together in a single order.
+The `stock.request.order` model acts as a container for grouping multiple stock requests together. It provides unified control over warehouse, location, expected date, and shipping policy for all contained requests. The order's state is computed based on the states of its child requests.
 
-- **Model name**: `stock.request.order`
-- **Description**: Stock Request Order
-- **Inherits from**: `mail.thread`, `mail.activity.mixin`
-- **Order**: `id desc`
+**Model Name:** `stock.request.order`
 
-## Purpose
+**Inherits:** `mail.thread`, `mail.activity.mixin`
 
-This model groups multiple stock requests into a single order, allowing batch operations and unified tracking. All requests within an order share common attributes like warehouse, location, expected date, and picking policy.
+**Order:** `id desc`
+
+---
 
 ## Fields
 
 ### Core Fields
 
 <ParamField path="name" type="Char" required>
-  Unique identifier for the stock request order. Auto-generated from sequence.
+  Unique identifier for the stock request order. Auto-generated from sequence `stock.request.order` if not provided.
   
-  Default: `/`
-  
-  Attributes: `copy=False`, `readonly=True`
+  **Properties:** `copy=False`, `readonly=True`, `default="/"`
 </ParamField>
 
 <ParamField path="state" type="Selection">
-  Current status of the order, computed from child request states.
+  Current status of the stock request order. Computed from child request states.
   
-  Possible values:
-  - `draft` - Draft
-  - `open` - In progress
-  - `done` - Done
-  - `cancel` - Cancelled
+  **Options:**
+  - `draft` - Draft (all requests are draft)
+  - `open` - In progress (mixed states)
+  - `done` - Done (all requests are done or cancelled)
+  - `cancel` - Cancelled (all requests are cancelled)
   
-  Default: `draft`
-  
-  Computed from: `stock_request_ids.state`
-  
-  Attributes: `copy=False`, `index=True`, `readonly=True`, `tracking=True`, `store=True`
+  **Properties:** `copy=False`, `default="draft"`, `index=True`, `readonly=True`, `tracking=True`, `compute="_compute_state"`, `store=True`
 </ParamField>
 
 <ParamField path="requested_by" type="Many2one" required>
-  User who requested the stock.
+  Reference to `res.users`. The user who requested the stock.
   
-  Related model: `res.users`
+  **Default:** Current user (`self.env.uid`)
   
-  Default: Current user
-  
-  Attributes: `tracking=True`
+  **Properties:** `tracking=True`
 </ParamField>
 
 <ParamField path="expected_date" type="Datetime" required>
-  Date when you expect to receive the goods.
+  Date when you expect to receive the goods. Applied to all child requests.
   
-  Default: Current datetime
+  **Default:** `fields.Datetime.now`
   
-  Attributes: `index=True`
+  **Properties:** `index=True`, `required=True`
 </ParamField>
 
 <ParamField path="picking_policy" type="Selection" required>
-  Defines how products should be received.
+  Defines how products should be received for all requests in the order.
   
-  Possible values:
+  **Options:**
   - `direct` - Receive each product when available
   - `one` - Receive all products at once
   
-  Default: `direct`
+  **Default:** `"direct"`
 </ParamField>
 
 ### Location & Warehouse Fields
 
 <ParamField path="warehouse_id" type="Many2one" required>
-  Warehouse where the stock will be received.
+  Reference to `stock.warehouse`. The warehouse where stock is requested.
   
-  Related model: `stock.warehouse`
-  
-  Attributes: `check_company=True`, `ondelete="cascade"`
+  **Properties:** `check_company=True`, `ondelete="cascade"`, `required=True`
 </ParamField>
 
 <ParamField path="location_id" type="Many2one" required>
-  Destination location for the stock.
+  Reference to `stock.location`. The specific location within the warehouse.
   
-  Related model: `stock.location`
+  **Domain:** `[('usage', 'in', ['internal', 'transit'])]` (when virtual locations not allowed)
   
-  Domain: Internal or transit locations only (unless virtual locations are allowed)
-  
-  Attributes: `ondelete="cascade"`
+  **Properties:** `ondelete="cascade"`, `required=True`
 </ParamField>
 
 <ParamField path="allow_virtual_location" type="Boolean">
-  Whether virtual locations are allowed for this order.
+  Whether virtual locations are allowed.
   
-  Related field: `company_id.stock_request_allow_virtual_loc`
+  **Related:** `company_id.stock_request_allow_virtual_loc`
   
-  Attributes: `readonly=True`
+  **Properties:** `readonly=True`
 </ParamField>
 
-### Organizational Fields
+### Procurement & Company Fields
 
 <ParamField path="procurement_group_id" type="Many2one">
-  Procurement group for organizing stock moves.
+  Reference to `procurement.group`. Moves created through stock requests in this order will be put in this procurement group.
   
-  Related model: `procurement.group`
-  
-  Help: "Moves created through this stock request will be put in this procurement group. If none is given, the moves generated by procurement rules will be grouped into one big picking."
+  **Help:** If none is given, moves generated by procurement rules will be grouped into one big picking.
 </ParamField>
 
 <ParamField path="company_id" type="Many2one" required>
-  Company owning this order.
+  Reference to `res.company`. The company this order belongs to.
   
-  Related model: `res.company`
+  **Default:** `self.env.company`
+</ParamField>
+
+### Route Fields
+
+<ParamField path="route_id" type="Many2one">
+  Reference to `stock.route`. The route related to a stock request order. When set, applied to all child requests.
   
-  Default: Current company
+  **Properties:** `compute="_compute_route_id"`, `inverse="_inverse_route_id"`, `readonly=True`, `store=True`
+</ParamField>
+
+<ParamField path="route_ids" type="Many2many">
+  Reference to `stock.route`. Available routes based on warehouse and location.
+  
+  **Properties:** `compute="_compute_route_ids"`, `readonly=True`, `store=True`
 </ParamField>
 
 ### Relational Fields
 
 <ParamField path="stock_request_ids" type="One2many">
-  Individual stock requests within this order.
+  Reference to `stock.request` records with `inverse_name="order_id"`.
   
-  Related model: `stock.request`
+  All stock requests contained in this order.
   
-  Inverse field: `order_id`
-  
-  Attributes: `copy=True`
+  **Properties:** `copy=True`
 </ParamField>
 
 <ParamField path="stock_request_count" type="Integer">
   Number of stock requests in this order.
   
-  Computed field: Count of `stock_request_ids`
-  
-  Attributes: `readonly=True`
+  **Properties:** `compute="_compute_stock_request_count"`, `readonly=True`
 </ParamField>
 
 <ParamField path="move_ids" type="One2many">
-  All stock moves from child requests.
+  Reference to `stock.move` records from all child requests.
   
-  Computed field: Aggregated from `stock_request_ids.move_ids`
-  
-  Related model: `stock.move`
-  
-  Attributes: `readonly=True`
+  **Properties:** `compute="_compute_move_ids"`, `readonly=True`
 </ParamField>
 
 <ParamField path="picking_ids" type="One2many">
-  All delivery orders/pickings from child requests.
+  Reference to `stock.picking` records from all child requests.
   
-  Computed field: Aggregated from `stock_request_ids.picking_ids`
-  
-  Related model: `stock.picking`
-  
-  Attributes: `readonly=True`
+  **Properties:** `compute="_compute_picking_ids"`, `readonly=True`
 </ParamField>
 
 <ParamField path="picking_count" type="Integer">
-  Number of delivery orders.
+  Number of delivery orders/pickings.
   
-  Computed field: Count of `picking_ids`
-  
-  Attributes: `readonly=True`
+  **Properties:** `compute="_compute_picking_ids"`, `readonly=True`
 </ParamField>
 
-### Route Fields
-
-<ParamField path="route_ids" type="Many2many">
-  Available routes for this order based on warehouse and location.
-  
-  Related model: `stock.route`
-  
-  Computed from: `warehouse_id`, `location_id`, `stock_request_ids`
-  
-  Attributes: `readonly=True`, `store=True`
-</ParamField>
-
-<ParamField path="route_id" type="Many2one">
-  Selected route for all requests in this order. If set, synchronizes to all child requests.
-  
-  Related model: `stock.route`
-  
-  Computed from: `stock_request_ids`
-  
-  Attributes: `readonly=True`, `store=True`
-  
-  Help: "The route related to a stock request order"
-</ParamField>
+---
 
 ## Methods
 
-### action_confirm()
+### Action Methods
 
-Confirms all stock requests in the order.
+<ResponseField name="action_confirm" type="method">
+  Confirms all stock requests in the order.
+  
+  **Returns:** `True`
+  
+  **Raises:** `UserError` if there are no stock request items in the order
+  
+  **Behavior:**
+  - Validates that at least one request exists
+  - Calls `action_confirm()` on all child `stock_request_ids`
+  
+  ```python stock_request/models/stock_request_order.py:300
+  def action_confirm(self):
+      if not self.stock_request_ids:
+          raise UserError(
+              _("There should be at least one request item for confirming the order.")
+          )
+      self.mapped("stock_request_ids").action_confirm()
+      return True
+  ```
+</ResponseField>
 
-**Returns:** `bool` - Always returns `True`
+<ResponseField name="action_draft" type="method">
+  Resets all stock requests in the order to draft state.
+  
+  **Returns:** `True`
+  
+  ```python stock_request/models/stock_request_order.py:308
+  def action_draft(self):
+      self.mapped("stock_request_ids").action_draft()
+      return True
+  ```
+</ResponseField>
 
-**Raises:** `UserError` - If no request items exist
+<ResponseField name="action_cancel" type="method">
+  Cancels all stock requests in the order.
+  
+  **Returns:** `True`
+  
+  ```python stock_request/models/stock_request_order.py:312
+  def action_cancel(self):
+      self.mapped("stock_request_ids").action_cancel()
+      return True
+  ```
+</ResponseField>
 
-**State Transition:** `draft` → `open` (based on child request states)
+<ResponseField name="action_done" type="method">
+  Marks the order as done (currently no-op, state computed from requests).
+  
+  **Returns:** `True`
+  
+  ```python stock_request/models/stock_request_order.py:316
+  def action_done(self):
+      return True
+  ```
+</ResponseField>
 
-```python
-def action_confirm(self):
-    if not self.stock_request_ids:
-        raise UserError(
-            _("There should be at least one request item for confirming the order.")
-        )
-    self.mapped("stock_request_ids").action_confirm()
-    return True
-```
+<ResponseField name="action_view_transfer" type="method">
+  Opens the transfer/picking view for all pickings in this order.
+  
+  **Returns:** `dict` - Action dictionary for viewing pickings
+  
+  **Behavior:**
+  - Shows tree view if multiple pickings
+  - Shows form view if single picking
+  
+  ```python stock_request/models/stock_request_order.py:319
+  def action_view_transfer(self):
+      action = self.env["ir.actions.act_window"]._for_xml_id(
+          "stock.action_picking_tree_all"
+      )
 
-**Usage:**
+      pickings = self.mapped("picking_ids")
+      if len(pickings) > 1:
+          action["domain"] = [("id", "in", pickings.ids)]
+      elif pickings:
+          action["views"] = [(self.env.ref("stock.view_picking_form").id, "form")]
+          action["res_id"] = pickings.id
+      return action
+  ```
+</ResponseField>
 
-```python
-# Confirm an order with multiple requests
-order = env['stock.request.order'].browse(order_id)
-order.action_confirm()
-# All child requests are confirmed
-```
+<ResponseField name="action_view_stock_requests" type="method">
+  Opens the view for stock requests in this order.
+  
+  **Returns:** `dict` - Action dictionary for viewing stock requests
+  
+  **Behavior:**
+  - Shows tree view if multiple requests
+  - Shows form view if single request
+  
+  ```python stock_request/models/stock_request_order.py:332
+  def action_view_stock_requests(self):
+      action = self.env["ir.actions.act_window"]._for_xml_id(
+          "stock_request.action_stock_request_form"
+      )
+      if len(self.stock_request_ids) > 1:
+          action["domain"] = [("order_id", "in", self.ids)]
+      elif self.stock_request_ids:
+          action["views"] = [
+              (self.env.ref("stock_request.view_stock_request_form").id, "form")
+          ]
+          action["res_id"] = self.stock_request_ids.id
+      return action
+  ```
+</ResponseField>
+
+### Compute Methods
+
+<ResponseField name="_compute_state" type="method">
+  Computes the order state based on child request states.
+  
+  **Depends on:** `stock_request_ids.state`
+  
+  **Logic:**
+  - `draft`: No requests OR all requests are `draft`
+  - `cancel`: All requests are `cancel`
+  - `done`: All requests are `done` or `cancel`
+  - `open`: Mixed states (in progress)
+  
+  ```python stock_request/models/stock_request_order.py:211
+  @api.depends("stock_request_ids.state")
+  def _compute_state(self):
+      for item in self:
+          states = item.stock_request_ids.mapped("state")
+          if not item.stock_request_ids or all(x == "draft" for x in states):
+              item.state = "draft"
+          elif all(x == "cancel" for x in states):
+              item.state = "cancel"
+          elif all(x in ("done", "cancel") for x in states):
+              item.state = "done"
+          else:
+              item.state = "open"
+  ```
+</ResponseField>
+
+<ResponseField name="_compute_route_ids" type="method">
+  Computes available routes based on warehouse, location, and child requests.
+  
+  **Depends on:** `warehouse_id`, `location_id`, `stock_request_ids`
+  
+  **Behavior:**
+  - Finds routes associated with the warehouse
+  - Filters routes based on location hierarchy
+  - If requests exist, computes common routes across all requests
+  
+  ```python stock_request/models/stock_request_order.py:150
+  @api.depends("warehouse_id", "location_id", "stock_request_ids")
+  def _compute_route_ids(self):
+      # Complex logic to determine available routes
+      # See source for full implementation
+  ```
+</ResponseField>
+
+<ResponseField name="_compute_route_id" type="method">
+  Computes the single route ID if all child requests use the same route.
+  
+  **Depends on:** `stock_request_ids`
+  
+  **Logic:**
+  - If all requests have the same route, sets that route
+  - If routes differ across requests, sets to `False`
+  
+  ```python stock_request/models/stock_request_order.py:191
+  @api.depends("stock_request_ids")
+  def _compute_route_id(self):
+      for order in self:
+          if order.stock_request_ids:
+              first_route = order.stock_request_ids[0].route_id or False
+              if any(r.route_id != first_route for r in order.stock_request_ids):
+                  first_route = False
+              order.route_id = first_route
+  ```
+</ResponseField>
+
+<ResponseField name="_compute_picking_ids" type="method">
+  Computes all pickings from child requests.
+  
+  **Depends on:** `stock_request_ids.allocation_ids`
+  
+  ```python stock_request/models/stock_request_order.py:224
+  @api.depends("stock_request_ids.allocation_ids")
+  def _compute_picking_ids(self):
+      for record in self:
+          record.picking_ids = record.stock_request_ids.mapped("picking_ids")
+          record.picking_count = len(record.picking_ids)
+  ```
+</ResponseField>
+
+<ResponseField name="_compute_move_ids" type="method">
+  Computes all stock moves from child requests.
+  
+  **Depends on:** `stock_request_ids`
+  
+  ```python stock_request/models/stock_request_order.py:230
+  @api.depends("stock_request_ids")
+  def _compute_move_ids(self):
+      for record in self:
+          record.move_ids = record.stock_request_ids.mapped("move_ids")
+  ```
+</ResponseField>
+
+<ResponseField name="_compute_stock_request_count" type="method">
+  Computes the number of stock requests in the order.
+  
+  **Depends on:** `stock_request_ids`
+  
+  ```python stock_request/models/stock_request_order.py:235
+  @api.depends("stock_request_ids")
+  def _compute_stock_request_count(self):
+      for record in self:
+          record.stock_request_count = len(record.stock_request_ids)
+  ```
+</ResponseField>
+
+### Inverse Methods
+
+<ResponseField name="_inverse_route_id" type="method">
+  Applies the order's route to all child requests.
+  
+  **Behavior:**
+  - When `route_id` is set on the order, writes it to all `stock_request_ids`
+  
+  ```python stock_request/models/stock_request_order.py:200
+  def _inverse_route_id(self):
+      for order in self:
+          if order.route_id:
+              order.stock_request_ids.write({"route_id": order.route_id.id})
+  ```
+</ResponseField>
+
+### Onchange Methods
+
+<ResponseField name="onchange_route_id" type="method">
+  Updates all child requests when route changes.
+  
+  **Decorator:** `@api.onchange("route_id")`
+  
+  ```python stock_request/models/stock_request_order.py:205
+  @api.onchange("route_id")
+  def _onchange_route_id(self):
+      if self.route_id:
+          for request in self.stock_request_ids:
+              request.route_id = self.route_id
+  ```
+</ResponseField>
+
+<ResponseField name="onchange_requested_by" type="method">
+  Propagates `requested_by` change to child requests.
+  
+  **Decorator:** `@api.onchange("requested_by")`
+</ResponseField>
+
+<ResponseField name="onchange_expected_date" type="method">
+  Propagates `expected_date` change to child requests.
+  
+  **Decorator:** `@api.onchange("expected_date")`
+</ResponseField>
+
+<ResponseField name="onchange_picking_policy" type="method">
+  Propagates `picking_policy` change to child requests.
+  
+  **Decorator:** `@api.onchange("picking_policy")`
+</ResponseField>
+
+<ResponseField name="onchange_location_id" type="method">
+  Updates warehouse when location changes and propagates to child requests.
+  
+  **Decorator:** `@api.onchange("location_id")`
+  
+  **Behavior:**
+  - If location has a different warehouse, updates `warehouse_id`
+  - Calls `change_childs()` to update child requests
+</ResponseField>
+
+<ResponseField name="onchange_warehouse_id" type="method">
+  Updates location and company when warehouse changes.
+  
+  **Decorator:** `@api.onchange("warehouse_id")`
+  
+  **Behavior:**
+  - Updates `location_id` to warehouse's `lot_stock_id`
+  - Updates `company_id` if warehouse company differs
+  - Calls `change_childs()` to update child requests
+</ResponseField>
+
+<ResponseField name="onchange_procurement_group_id" type="method">
+  Propagates `procurement_group_id` change to child requests.
+  
+  **Decorator:** `@api.onchange("procurement_group_id")`
+</ResponseField>
+
+<ResponseField name="onchange_company_id" type="method">
+  Updates warehouse when company changes.
+  
+  **Decorator:** `@api.onchange("company_id")`
+  
+  **Behavior:**
+  - Searches for a warehouse in the new company
+  - Calls `change_childs()` to update child requests
+</ResponseField>
+
+<ResponseField name="change_childs" type="method">
+  Propagates order-level changes to all child stock requests.
+  
+  **Updated fields:**
+  - `warehouse_id`
+  - `location_id`
+  - `company_id`
+  - `picking_policy`
+  - `expected_date`
+  - `requested_by`
+  - `procurement_group_id`
+  
+  <Note>
+  Skipped when context contains `no_change_childs=True`
+  </Note>
+  
+  ```python stock_request/models/stock_request_order.py:289
+  def change_childs(self):
+      if not self._context.get("no_change_childs", False):
+          for line in self.stock_request_ids:
+              line.warehouse_id = self.warehouse_id
+              line.location_id = self.location_id
+              line.company_id = self.company_id
+              line.picking_policy = self.picking_policy
+              line.expected_date = self.expected_date
+              line.requested_by = self.requested_by
+              line.procurement_group_id = self.procurement_group_id
+  ```
+</ResponseField>
+
+### Utility Methods
+
+<ResponseField name="get_parents" type="method">
+  Returns all parent locations up to the root for the order's location.
+  
+  **Returns:** `stock.location` recordset
+  
+  ```python stock_request/models/stock_request_order.py:183
+  def get_parents(self):
+      location = self.location_id
+      result = location
+      while location.location_id:
+          location = location.location_id
+          result |= location
+      return result
+  ```
+</ResponseField>
+
+<ResponseField name="default_get" type="method">
+  Provides default values for warehouse and location based on company.
+  
+  **Decorator:** `@api.model`
+  
+  **Behavior:**
+  - Searches for a warehouse in the specified company
+  - Sets `location_id` to warehouse's `lot_stock_id`
+  
+  ```python stock_request/models/stock_request_order.py:14
+  @api.model
+  def default_get(self, fields):
+      res = super().default_get(fields)
+      warehouse = None
+      if "warehouse_id" not in res and res.get("company_id"):
+          warehouse = self.env["stock.warehouse"].search(
+              [("company_id", "=", res["company_id"])], limit=1
+          )
+      if warehouse:
+          res["warehouse_id"] = warehouse.id
+          res["location_id"] = warehouse.lot_stock_id.id
+      return res
+  ```
+</ResponseField>
 
 ---
-
-### action_draft()
-
-Resets all stock requests in the order to draft state.
-
-**Returns:** `bool` - Always returns `True`
-
-**State Transition:** Any state → `draft`
-
-```python
-def action_draft(self):
-    self.mapped("stock_request_ids").action_draft()
-    return True
-```
-
-**Usage:**
-
-```python
-order = env['stock.request.order'].browse(order_id)
-order.action_draft()
-```
-
----
-
-### action_cancel()
-
-Cancels all stock requests in the order.
-
-**Returns:** `bool` - Always returns `True`
-
-**State Transition:** Any state → `cancel`
-
-```python
-def action_cancel(self):
-    self.mapped("stock_request_ids").action_cancel()
-    return True
-```
-
-**Usage:**
-
-```python
-order = env['stock.request.order'].browse(order_id)
-order.action_cancel()
-```
-
----
-
-### action_done()
-
-Marks the order as done. Note that this is typically handled automatically via child request states.
-
-**Returns:** `bool` - Always returns `True`
-
-```python
-def action_done(self):
-    return True
-```
-
----
-
-### action_view_transfer()
-
-Opens the view showing all associated delivery orders/pickings from child requests.
-
-**Returns:** `dict` - Action definition for opening picking tree/form view
-
-```python
-def action_view_transfer(self):
-    action = self.env["ir.actions.act_window"]._for_xml_id(
-        "stock.action_picking_tree_all"
-    )
-
-    pickings = self.mapped("picking_ids")
-    if len(pickings) > 1:
-        action["domain"] = [("id", "in", pickings.ids)]
-    elif pickings:
-        action["views"] = [(self.env.ref("stock.view_picking_form").id, "form")]
-        action["res_id"] = pickings.id
-    return action
-```
-
-**Usage:**
-
-```python
-order = env['stock.request.order'].browse(order_id)
-action = order.action_view_transfer()
-# Opens view of all pickings from child requests
-```
-
----
-
-### action_view_stock_requests()
-
-Opens the view showing all stock requests in this order.
-
-**Returns:** `dict` - Action definition for opening stock request tree/form view
-
-```python
-def action_view_stock_requests(self):
-    action = self.env["ir.actions.act_window"]._for_xml_id(
-        "stock_request.action_stock_request_form"
-    )
-    if len(self.stock_request_ids) > 1:
-        action["domain"] = [("order_id", "in", self.ids)]
-    elif self.stock_request_ids:
-        action["views"] = [
-            (self.env.ref("stock_request.view_stock_request_form").id, "form")
-        ]
-        action["res_id"] = self.stock_request_ids.id
-    return action
-```
-
-**Usage:**
-
-```python
-order = env['stock.request.order'].browse(order_id)
-action = order.action_view_stock_requests()
-# Opens view of child stock requests
-```
-
----
-
-### change_childs()
-
-Synchronizes order-level field values to all child stock requests. Called automatically by onchange methods.
-
-**Returns:** `None`
-
-```python
-def change_childs(self):
-    if not self._context.get("no_change_childs", False):
-        for line in self.stock_request_ids:
-            line.warehouse_id = self.warehouse_id
-            line.location_id = self.location_id
-            line.company_id = self.company_id
-            line.picking_policy = self.picking_policy
-            line.expected_date = self.expected_date
-            line.requested_by = self.requested_by
-            line.procurement_group_id = self.procurement_group_id
-```
-
-**Fields synchronized:**
-- `warehouse_id`
-- `location_id`
-- `company_id`
-- `picking_policy`
-- `expected_date`
-- `requested_by`
-- `procurement_group_id`
-
----
-
-### get_parents()
-
-Returns all parent locations up to the root location.
-
-**Returns:** `stock.location` recordset - Location hierarchy from `location_id` to root
-
-```python
-def get_parents(self):
-    location = self.location_id
-    result = location
-    while location.location_id:
-        location = location.location_id
-        result |= location
-    return result
-```
-
-**Usage:**
-
-```python
-order = env['stock.request.order'].browse(order_id)
-parents = order.get_parents()
-print(parents.mapped('name'))
-# Output: ['WH/Stock', 'WH', 'Physical Locations']
-```
-
----
-
-### _create_from_product_multiselect()
-
-Static method to create a stock request order from multiple selected products.
-
-**Parameters:**
-- `products` (product.product or product.template recordset): Products to create requests for
-
-**Returns:** `dict` - Action definition to open the created order
-
-**Raises:** `ValidationError` - If called outside product context
-
-```python
-@api.model
-def _create_from_product_multiselect(self, products):
-    if not products:
-        return False
-    if products._name not in ("product.product", "product.template"):
-        raise ValidationError(
-            _("This action only works in the context of products")
-        )
-    if products._name == "product.template":
-        # search instead of mapped so we don't include archived variants
-        products = self.env["product.product"].search(
-            [("product_tmpl_id", "in", products.ids)]
-        )
-    expected = self.default_get(["expected_date"])["expected_date"]
-    order = self.env["stock.request.order"].create(
-        dict(
-            expected_date=expected,
-            stock_request_ids=[
-                (
-                    0,
-                    0,
-                    dict(
-                        product_id=product.id,
-                        product_uom_id=product.uom_id.id,
-                        product_uom_qty=1.0,
-                        expected_date=expected,
-                    ),
-                )
-                for product in products
-            ],
-        )
-    )
-    action = self.env["ir.actions.act_window"]._for_xml_id(
-        "stock_request.stock_request_order_action"
-    )
-    action["views"] = [
-        (self.env.ref("stock_request.stock_request_order_form").id, "form")
-    ]
-    action["res_id"] = order.id
-    return action
-```
-
-**Usage:**
-
-```python
-# From product tree view, create order for selected products
-products = env['product.product'].browse([id1, id2, id3])
-action = env['stock.request.order']._create_from_product_multiselect(products)
-# Returns action to open newly created order
-```
-
-## Computed Fields
-
-### _compute_state()
-
-Computes order state based on child request states.
-
-**Logic:**
-- All requests `draft` or no requests → `draft`
-- All requests `cancel` → `cancel`
-- All requests `done` or `cancel` → `done`
-- Otherwise → `open`
-
-```python
-@api.depends("stock_request_ids.state")
-def _compute_state(self):
-    for item in self:
-        states = item.stock_request_ids.mapped("state")
-        if not item.stock_request_ids or all(x == "draft" for x in states):
-            item.state = "draft"
-        elif all(x == "cancel" for x in states):
-            item.state = "cancel"
-        elif all(x in ("done", "cancel") for x in states):
-            item.state = "done"
-        else:
-            item.state = "open"
-```
-
----
-
-### _compute_route_ids()
-
-Computes available routes based on warehouse, location, and product routes.
-
-```python
-@api.depends("warehouse_id", "location_id", "stock_request_ids")
-def _compute_route_ids(self):
-    route_obj = self.env["stock.route"]
-    routes = route_obj.search(
-        [("warehouse_ids", "in", self.mapped("warehouse_id").ids)]
-    )
-    routes_by_warehouse = {}
-    for route in routes:
-        for warehouse in route.warehouse_ids:
-            routes_by_warehouse.setdefault(warehouse.id, self.env["stock.route"])
-            routes_by_warehouse[warehouse.id] |= route
-    for record in self:
-        routes = route_obj
-        if record.warehouse_id and routes_by_warehouse.get(record.warehouse_id.id):
-            routes |= routes_by_warehouse[record.warehouse_id.id]
-        parents = record.get_parents().ids
-        valid_routes = []
-        for route in routes:
-            if any(p.location_dest_id.id in parents for p in route.rule_ids):
-                valid_routes.append(route)
-        filtered_routes = self.env["stock.route"].browse(
-            [route.id for route in valid_routes]
-        )
-        if record.stock_request_ids:
-            all_routes = record.stock_request_ids.mapped("route_ids")
-            common_routes = all_routes
-            for line in record.stock_request_ids:
-                common_routes &= line.route_ids
-            final_routes = filtered_routes | common_routes
-            record.route_ids = [(6, 0, final_routes.ids)]
-        else:
-            record.route_ids = [(6, 0, filtered_routes.ids)]
-```
-
----
-
-### _compute_route_id()
-
-Computes a single route if all child requests use the same route.
-
-```python
-@api.depends("stock_request_ids")
-def _compute_route_id(self):
-    for order in self:
-        if order.stock_request_ids:
-            first_route = order.stock_request_ids[0].route_id or False
-            if any(r.route_id != first_route for r in order.stock_request_ids):
-                first_route = False
-            order.route_id = first_route
-```
 
 ## Constraints
 
 ### SQL Constraints
 
-- `name_uniq`: Stock Request name must be unique per company
+<Warning>
+**name_uniq:** Stock Request name must be unique per company.
+</Warning>
 
 ### Python Constraints
 
-<Expandable title="_check_warehouse_company">
-  Validates that the warehouse company matches the order company.
+<ResponseField name="_check_warehouse_company">
+  Validates that warehouse company matches order company.
   
-  **Raises:** `ValidationError` - "The company of the stock request must match with that of the warehouse."
-</Expandable>
+  **Constraint:** `warehouse_id`, `company_id`
+  
+  **Raises:** `ValidationError`
+  
+  ```python stock_request/models/stock_request_order.py:362
+  @api.constrains("warehouse_id", "company_id")
+  def _check_warehouse_company(self):
+      if any(
+          request.warehouse_id.company_id != request.company_id for request in self
+      ):
+          raise ValidationError(
+              _(
+                  "The company of the stock request must match with "
+                  "that of the warehouse."
+              )
+          )
+  ```
+</ResponseField>
 
-<Expandable title="_check_location_company">
-  Validates that the location company (if set) matches the order company.
+<ResponseField name="_check_location_company">
+  Validates that location company (if set) matches order company.
   
-  **Raises:** `ValidationError` - "The company of the stock request must match with that of the location."
-</Expandable>
+  **Constraint:** `location_id`, `company_id`
+  
+  **Raises:** `ValidationError`
+  
+  ```python stock_request/models/stock_request_order.py:374
+  @api.constrains("location_id", "company_id")
+  def _check_location_company(self):
+      if any(
+          request.location_id.company_id
+          and request.location_id.company_id != request.company_id
+          for request in self
+      ):
+          raise ValidationError(
+              _(
+                  "The company of the stock request must match with "
+                  "that of the location."
+              )
+          )
+  ```
+</ResponseField>
+
+---
 
 ## Lifecycle
 
+### Create
+
+<ResponseField name="create" type="method">
+  Creates new stock request order records with auto-generated names.
+  
+  **Decorator:** `@api.model_create_multi`
+  
+  **Behavior:**
+  - Auto-generates `name` from sequence `stock.request.order` if not provided or equals "/"
+  
+  ```python stock_request/models/stock_request_order.py:345
+  @api.model_create_multi
+  def create(self, vals_list):
+      vals_list_upd = []
+      for vals in vals_list:
+          upd_vals = vals.copy()
+          if upd_vals.get("name", "/") == "/":
+              upd_vals["name"] = self.env["ir.sequence"].next_by_code(
+                  "stock.request.order"
+              )
+          vals_list_upd.append(upd_vals)
+      return super().create(vals_list_upd)
+  ```
+</ResponseField>
+
+### Unlink
+
+<ResponseField name="unlink" type="method">
+  Deletes stock request order records.
+  
+  **Raises:** `UserError` if any record is not in `draft` state
+  
+  ```python stock_request/models/stock_request_order.py:357
+  def unlink(self):
+      if self.filtered(lambda r: r.state != "draft"):
+          raise UserError(_("Only orders on draft state can be unlinked"))
+      return super().unlink()
+  ```
+</ResponseField>
+
+---
+
+## Special Methods
+
+### Create From Product Multiselect
+
+<ResponseField name="_create_from_product_multiselect" type="method">
+  Creates a stock request order from a multi-selection of products.
+  
+  **Decorator:** `@api.model`
+  
+  **Parameters:**
+  - `products` - Recordset of `product.product` or `product.template`
+  
+  **Returns:** Action dictionary to open the created order
+  
+  **Raises:** `ValidationError` if called outside product context
+  
+  **Behavior:**
+  - Creates one stock request per product with quantity 1.0
+  - Uses default expected date
+  - Opens the created order in form view
+  
+  ```python stock_request/models/stock_request_order.py:388
+  @api.model
+  def _create_from_product_multiselect(self, products):
+      if not products:
+          return False
+      if products._name not in ("product.product", "product.template"):
+          raise ValidationError(
+              _("This action only works in the context of products")
+          )
+      if products._name == "product.template":
+          products = self.env["product.product"].search(
+              [("product_tmpl_id", "in", products.ids)]
+          )
+      expected = self.default_get(["expected_date"])["expected_date"]
+      order = self.env["stock.request.order"].create(
+          dict(
+              expected_date=expected,
+              stock_request_ids=[
+                  (
+                      0,
+                      0,
+                      dict(
+                          product_id=product.id,
+                          product_uom_id=product.uom_id.id,
+                          product_uom_qty=1.0,
+                          expected_date=expected,
+                      ),
+                  )
+                  for product in products
+              ],
+          )
+      )
+      # Returns action to view created order
+  ```
+</ResponseField>
+
+---
+
+## Usage Example
+
 ```python
-# Create an order with multiple requests
+# Create a stock request order with multiple products
 order = env['stock.request.order'].create({
     'warehouse_id': warehouse.id,
     'location_id': location.id,
+    'requested_by': env.user.id,
+    'expected_date': fields.Datetime.now(),
+    'picking_policy': 'direct',
     'stock_request_ids': [
         (0, 0, {
             'product_id': product1.id,
@@ -584,28 +711,31 @@ order = env['stock.request.order'].create({
         }),
         (0, 0, {
             'product_id': product2.id,
-            'product_uom_qty': 20.0,
+            'product_uom_qty': 5.0,
             'product_uom_id': product2.uom_id.id,
         }),
     ],
 })
-# State: draft
 
-# Confirm the entire order
+# Confirm all requests in the order
 order.action_confirm()
-# State: open
-# All child requests are confirmed
 
-# View associated transfers
-action = order.action_view_transfer()
-# Opens pickings view
+# Check order state (computed from child requests)
+print(f"Order state: {order.state}")
+print(f"Number of requests: {order.stock_request_count}")
+print(f"Number of pickings: {order.picking_count}")
 
-# When all child requests are done, order becomes done
-# State: done
+# Set a common route for all requests
+order.route_id = route
+
+# View all stock requests
+action = order.action_view_stock_requests()
 ```
+
+---
 
 ## See Also
 
-- [stock.request](/api/stock-request) - Individual stock request model
-- [stock.request.allocation](/api/stock-request-allocation) - Allocation model
+- [stock.request](/api/stock-request) - Individual stock request within an order
+- [stock.request.allocation](/api/stock-request-allocation) - Allocation linking requests to stock moves
 - [stock.request.abstract](/api/stock-request-abstract) - Base abstract model

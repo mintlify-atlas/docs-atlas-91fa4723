@@ -1,167 +1,412 @@
 ---
 title: Stock Request (Core)
-description: Internal request system for stock transfers with procurement integration
+description: Foundation module for internal stock requests with procurement integration
 ---
 
-The Stock Request module allows users to request products that are frequently stocked by the company to be transferred to their chosen location. This core module provides the foundation for the entire Stock Request framework.
+The `stock_request` module is the core foundation of the Stock Request framework, enabling users to create internal requests for stock transfers within the Odoo warehouse management system.
 
 ## Overview
 
-This module enables internal stock requests that integrate with Odoo's procurement system. When a stock request is confirmed, it is automatically evaluated using the procurement rules for the selected location, potentially triggering transfers, purchase orders, or manufacturing orders.
+**Module Name**: `stock_request`  
+**Version**: 18.0.1.1.3  
+**License**: LGPL-3  
+**Dependencies**: `stock`  
+**Author**: ForgeFlow, OCA  
+**Maintainers**: [@LoisRForgeFlow](https://github.com/LoisRForgeFlow), [@etobella](https://github.com/etobella)
+
+<Info>
+This module allows users to request products that are frequently stocked by the company to be transferred to their chosen location.
+</Info>
 
 ## Key Features
 
-- **Internal Stock Requests**: Request stock transfers for products to specific locations
-- **Procurement Integration**: Automatic evaluation using procurement rules upon confirmation
-- **Stock Request Orders**: Group multiple requests together
-- **Transfer Tracking**: Access related transfers directly from stock requests
-- **Access Control**: User and Manager roles with different permission levels
-- **Automatic Cancellation**: Cancel pending stock moves when requests are cancelled
+### Stock Request Management
 
-## Dependencies
+- Create and manage internal stock requests
+- Specify product, quantity, and destination location
+- Track request states: Draft, In Progress, Done, Cancelled
+- View related stock moves and pickings
+- Monitor quantity in progress, done, and cancelled
 
-<Note>
-This module has minimal dependencies and only requires the core `stock` module.
-</Note>
+### Procurement Integration
 
-```python
-"depends": ["stock"]
-```
+- Automatic evaluation using procurement rules
+- Integration with warehouse routes
+- Support for make-to-order and make-to-stock strategies
+- Automatic stock move creation upon confirmation
+
+### Stock Request Orders
+
+- Group multiple stock requests into orders
+- Manage requests collectively
+- Order-level tracking and reporting
+
+### Permission System
+
+<Accordion title="Stock Request User Permissions">
+- Can see their own stock requests
+- Can view requests they're granted permission to follow
+- Can create and update only their own requests
+- Limited access to other users' requests
+</Accordion>
+
+<Accordion title="Stock Request Manager Permissions">
+- Full access to all stock requests
+- Can manage any user's requests
+- Can configure system settings
+- Complete administrative control
+</Accordion>
 
 ## Installation
 
-1. Install the module from Apps:
-   ```bash
-   pip install odoo-addon-stock-request
-   ```
-
-2. Update the app list in Odoo
-
-3. Search for "Stock Request" and click Install
+<Steps>
+  <Step title="Install Module">
+    Navigate to **Apps** and search for "Stock Request". Click **Install**.
+  </Step>
+  
+  <Step title="Assign User Groups">
+    Go to **Settings > Users & Companies > Users** and assign users to:
+    - **Stock Request / User** group
+    - **Stock Request / Manager** group
+  </Step>
+  
+  <Step title="Configure Settings">
+    Navigate to **Stock Requests > Settings** to configure default options.
+  </Step>
+</Steps>
 
 ## Configuration
 
-### Access Rights
+### User Groups
 
-Users must be assigned to one of the following security groups:
+Assign users to the appropriate security groups:
 
-#### Stock Request / User
+```python
+# Security groups defined in stock_request_security.xml
+stock_request_group_user
+stock_request_group_manager
+```
 
-- Can see their own Stock Requests
-- Can see Stock Requests they're granted permission to follow
-- Can create and update only their own Stock Requests
+### System Settings
 
-#### Stock Request / Manager
+Access stock request settings at **Stock Requests > Settings**:
 
-- Full management access to all Stock Requests
-- Can configure settings
-- Can manage all users' requests
+- Default warehouse configuration
+- Procurement rule settings
+- Sequence configuration for request numbering
 
-### Settings
-
-To configure the module:
-
-1. Go to **Stock Requests > Settings**
-2. Configure module parameters as needed
+<Note>
+The module creates automatic sequences for stock request numbering using the format `SR/XXXXX`.
+</Note>
 
 ## Usage
 
 ### Creating a Stock Request
 
-1. Navigate to **Stock Requests > Stock Requests**
-2. Click **Create**
-3. Fill in the required fields:
-   - **Product**: Select the product to request
-   - **Quantity**: Enter the requested quantity
-   - **Location**: Choose the destination location
-4. Click **Confirm**
+<Steps>
+  <Step title="Navigate to Stock Requests">
+    Go to **Stock Requests > Stock Requests** and click **Create**.
+  </Step>
+  
+  <Step title="Fill in Request Details">
+    - **Product**: Select the product to request
+    - **Quantity**: Enter the quantity needed
+    - **Location**: Choose the destination location
+    - **Expected Date**: When you need the products
+    - **Requested By**: Auto-filled with current user
+  </Step>
+  
+  <Step title="Confirm the Request">
+    Click **Confirm** to process the request through procurement rules.
+  </Step>
+  
+  <Step title="Track Progress">
+    - View created transfers via the **Transfers** button
+    - Monitor quantities: In Progress, Done, Cancelled
+    - Check related stock moves
+  </Step>
+</Steps>
 
-<Info>
-Upon confirmation, the request is evaluated using procurement rules for the selected location.
-</Info>
+### Stock Request States
 
-### Viewing Transfers
+| State | Description | Actions Available |
+|-------|-------------|-------------------|
+| **Draft** | Initial state when created | Edit, Confirm, Cancel |
+| **In Progress** | Confirmed and being fulfilled | View transfers, Cancel |
+| **Done** | Fully completed | View only |
+| **Cancelled** | Cancelled by user | Archive |
 
-When transfers are created from a stock request:
-
-1. Open the Stock Request
-2. Click the **Transfers** button
-3. View all related stock moves and pickings
-
-### Cancelling a Request
-
-When you cancel a Stock Request:
-
-- All related pending stock moves are automatically cancelled
-- Completed transfers remain unchanged
+### Cancelling Requests
 
 <Warning>
-Cancelling a stock request cannot be undone. Ensure this is the intended action.
+When you cancel a stock request, all related pending stock moves are automatically cancelled.
 </Warning>
+
+To cancel a request:
+
+1. Open the stock request
+2. Click **Cancel**
+3. Confirm the cancellation
+4. Related stock moves will be cancelled automatically
+
+## Data Models
+
+### Stock Request (`stock.request`)
+
+Core fields in the stock request model:
+
+```python
+# Key fields from stock_request.py
+name: Char                    # Request reference number
+state: Selection              # Draft, Open, Done, Cancel
+product_id: Many2one          # Product being requested
+product_qty: Float            # Quantity requested
+product_uom_id: Many2one      # Unit of measure
+location_id: Many2one         # Destination location
+expected_date: Datetime       # Expected delivery date
+requested_by: Many2one        # User who created request
+order_id: Many2one            # Related stock request order
+move_ids: One2many            # Related stock moves
+picking_ids: One2many         # Related pickings
+qty_in_progress: Float        # Computed quantity
+qty_done: Float               # Completed quantity
+qty_cancelled: Float          # Cancelled quantity
+```
+
+### Stock Request Order (`stock.request.order`)
+
+Groups multiple stock requests:
+
+```python
+name: Char                    # Order reference
+state: Selection              # Order state
+stock_request_ids: One2many   # Related stock requests
+expected_date: Datetime       # Expected date for all requests
+warehouse_id: Many2one        # Default warehouse
+```
+
+### Stock Request Allocation (`stock.request.allocation`)
+
+Tracks how stock requests are allocated to stock moves:
+
+```python
+stock_request_id: Many2one    # Related stock request
+stock_move_id: Many2one       # Allocated stock move
+requested_product_uom_qty: Float  # Allocated quantity
+```
+
+## Views and Menus
+
+### Menu Structure
+
+```
+Stock Requests
+├── Stock Requests
+│   ├── Stock Requests (All)
+│   ├── My Stock Requests
+│   └── Stock Request Orders
+├── Configuration
+│   └── Settings
+└── Reporting
+    └── Stock Request Analysis
+```
+
+### Available Views
+
+- **Tree View**: List of all stock requests with key information
+- **Form View**: Detailed request form with related transfers
+- **Kanban View**: Visual board grouped by state
+- **Pivot View**: Analysis and reporting
+- **Graph View**: Request statistics and trends
+
+## Integration Points
+
+### Procurement Rules
+
+Stock requests integrate with Odoo's procurement engine:
+
+- Evaluated against location-specific procurement rules
+- Can trigger purchase orders (with `stock_request_purchase`)
+- Can trigger manufacturing orders (with `stock_request_mrp`)
+- Respects warehouse routing configuration
+
+### Stock Moves
+
+Each confirmed request creates stock moves:
+
+- Moves linked via `stock.request.allocation`
+- Origin field references stock request
+- Automatic state synchronization
+- Cancellation cascades to moves
+
+### Stock Pickings
+
+Generated transfers are accessible:
+
+- Smart button shows picking count
+- Direct navigation to related pickings
+- Picking completion updates request quantities
 
 ## Technical Details
 
-### Module Information
+### Security
 
-- **Technical Name**: `stock_request`
-- **Version**: 18.0.1.1.3
-- **License**: LGPL-3
-- **Category**: Warehouse Management
-- **Author**: ForgeFlow, OCA
-- **Maintainers**: LoisRForgeFlow, etobella
+Defined in `security/stock_request_security.xml` and `security/ir.model.access.csv`:
+
+- Record rules for user-level access
+- Manager-level full access
+- Follower-based access control
 
 ### Data Files
 
-The module includes:
+```xml
+<!-- Sequence configuration -->
+data/stock_request_sequence_data.xml
 
-- Security groups and access rules
-- Views for stock requests, orders, and allocations
-- Stock move and picking views
-- Configuration settings views
-- Sequence data for request numbering
+<!-- Security definitions -->
+security/stock_request_security.xml
+security/ir.model.access.csv
 
-## Known Issues / Roadmap
+<!-- View definitions -->
+views/stock_request_views.xml
+views/stock_request_order_views.xml
+views/stock_request_allocation_views.xml
+views/stock_move_views.xml
+views/stock_picking_views.xml
+views/product.xml
+views/res_config_settings_views.xml
+views/stock_request_menu.xml
+```
+
+### Model Inheritance
+
+Extends standard Odoo models:
+
+- `stock.move`: Adds stock request allocation tracking
+- `stock.picking`: Adds stock request references
+- `product.product`: Adds request-related fields
+- `res.config.settings`: Adds stock request settings
+
+## Known Issues and Roadmap
 
 <Warning>
-Archiving functionality for Stock Requests and Orders needs development.
+**Archiving Limitation**: There is currently no way to archive stock requests and stock request orders. Only cancelled and done requests should be archived in custom implementations.
 </Warning>
 
-### Current Limitations
+<Note>
+**Active Field Management**: The active field needs logical management from orders to individual stock requests.
+</Note>
 
-- No way to archive Stock Requests and Stock Request Orders
-- Archiving should only be allowed for Cancelled and Done requests
-- Active field management from Orders to Stock Requests needs implementation
+## Common Use Cases
 
-## Integration with Other Modules
+### Internal Department Requests
 
-The core module serves as the foundation for:
+Departments can request stock transfers to their locations:
+
+1. Production floor requests materials from warehouse
+2. Request confirmed and evaluated
+3. Internal transfer created automatically
+4. Department receives materials
+
+### Replenishment Requests
+
+Request stock replenishment when running low:
+
+1. User notices low stock in their location
+2. Creates stock request for replenishment
+3. Procurement rules determine fulfillment method
+4. Stock transferred or procured as needed
+
+### Project-Based Requests
+
+Request materials for specific projects:
+
+1. Project manager creates stock request
+2. Links request to project location
+3. Materials transferred when confirmed
+4. Project location inventory updated
+
+## Best Practices
+
+<Tip>
+**Expected Dates**: Always set realistic expected dates to help warehouse staff prioritize requests.
+</Tip>
+
+<Tip>
+**Location Selection**: Choose the most specific destination location to ensure accurate routing and transfers.
+</Tip>
+
+<Tip>
+**Order Grouping**: Use Stock Request Orders to group related requests for better organization and processing.
+</Tip>
+
+## Troubleshooting
+
+### Request Stuck in Draft
+
+**Problem**: Request remains in draft after confirmation.  
+**Solution**: Check procurement rules for the destination location. Ensure routes are properly configured.
+
+### No Transfers Created
+
+**Problem**: Request confirmed but no picking generated.  
+**Solution**: Verify product has correct routes, check stock availability, ensure procurement rules exist for the location.
+
+### Permission Denied
+
+**Problem**: User cannot see or edit requests.  
+**Solution**: Verify user is assigned to Stock Request / User or Stock Request / Manager group.
+
+## API Examples
+
+### Creating a Stock Request via Code
+
+```python
+# Create a stock request programmatically
+stock_request = self.env['stock.request'].create({
+    'product_id': product.id,
+    'product_qty': 10.0,
+    'product_uom_id': product.uom_id.id,
+    'location_id': location.id,
+    'expected_date': fields.Datetime.now(),
+    'requested_by': self.env.user.id,
+})
+
+# Confirm the request
+stock_request.action_confirm()
+```
+
+### Querying Stock Requests
+
+```python
+# Find all open requests for a product
+open_requests = self.env['stock.request'].search([
+    ('product_id', '=', product.id),
+    ('state', '=', 'open'),
+])
+
+# Get requests for current user
+my_requests = self.env['stock.request'].search([
+    ('requested_by', '=', self.env.user.id),
+])
+```
+
+## Related Resources
 
 <CardGroup cols={2}>
   <Card title="Purchase Integration" icon="shopping-cart" href="/modules/purchase">
-    Auto-install when purchase_stock is available
+    Automatically create purchase orders from requests
   </Card>
   
   <Card title="MRP Integration" icon="industry" href="/modules/mrp">
-    Auto-install when mrp module is available
+    Generate manufacturing orders from stock requests
   </Card>
   
   <Card title="Kanban Cards" icon="columns" href="/modules/kanban">
-    Add barcode-based reordering system
+    Implement lean kanban system for requests
   </Card>
   
-  <Card title="Approval Workflows" icon="layer-group" href="/modules/tier-validation">
-    Add multi-tier validation process
+  <Card title="Approval Workflow" icon="layer-group" href="/modules/tier-validation">
+    Add multi-tier approval process
   </Card>
 </CardGroup>
-
-## Support
-
-For issues and feature requests:
-
-- **Bug Tracker**: [GitHub Issues](https://github.com/OCA/stock-logistics-request/issues)
-- **Repository**: [OCA/stock-logistics-request](https://github.com/OCA/stock-logistics-request)
-- **Documentation**: [Odoo Community Association](https://odoo-community.org)
-
-<Info>
-Do not contact contributors directly about support or help with technical issues. Use the GitHub issue tracker instead.
-</Info>

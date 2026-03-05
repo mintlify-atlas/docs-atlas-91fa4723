@@ -1,362 +1,540 @@
 ---
-title: Procurement Rules
-description: How Stock Requests evaluate procurement rules and generate transfers
-icon: route
+title: 'Procurement Rules'
+description: 'Configure procurement rules and routes for automated stock request fulfillment'
+icon: 'route'
 ---
 
-When a Stock Request is confirmed, Odoo's procurement engine evaluates rules to determine how to fulfill the request. This guide explains how the process works.
+Procurement rules determine how stock requests are fulfilled. This guide explains how to configure routes, rules, and automated procurement workflows.
 
-## How Procurement Works
+## Understanding Procurement in Stock Requests
 
-The procurement process follows these steps:
+When a stock request is confirmed, the system triggers the Odoo procurement engine:
 
 <Steps>
-  <Step title="Request Confirmation">
-    User confirms a Stock Request, triggering the `action_confirm()` method
-  </Step>
-  
-  <Step title="Procurement Launch">
-    The system calls `_action_launch_procurement_rule()` to start the procurement process
-  </Step>
-  
-  <Step title="Rule Evaluation">
-    Odoo searches for applicable procurement rules based on:
+  <Step title="Procurement Creation">
+    The stock request creates a procurement with:
+    - Product and quantity requested
     - Destination location
-    - Product routes
-    - Warehouse routes
-    - Manually selected route (if any)
+    - Expected date
+    - Selected route (if any)
+  </Step>
+  
+  <Step title="Rule Matching">
+    The procurement engine finds applicable rules based on:
+    - Route selection
+    - Product configuration
+    - Location hierarchy
+    - Warehouse configuration
   </Step>
   
   <Step title="Action Execution">
-    The matching rule executes its action:
-    - `Pull From` → Creates stock move/transfer
-    - `Buy` → Creates purchase order
-    - `Manufacture` → Creates manufacturing order
+    Matched rules execute their configured action:
+    - Create stock moves (pull/push)
+    - Generate purchase orders (buy)
+    - Create manufacturing orders (manufacture)
   </Step>
   
-  <Step title="Allocation Creation">
-    Stock Request Allocation links the request to generated moves
+  <Step title="Allocation Tracking">
+    Stock moves are linked to the request via allocations for progress tracking.
   </Step>
 </Steps>
 
-## Procurement Rule Evaluation
+## Procurement Values Prepared by Stock Requests
 
-### Route Computation
-
-The system determines available routes for a request:
+Stock requests pass specific values to the procurement engine:
 
 ```python
-@api.depends("product_id", "warehouse_id", "location_id")
-def _compute_route_ids(self):
-    route_obj = self.env["stock.route"]
-    # Get warehouse routes
-    routes = route_obj.search(
-        [("warehouse_ids", "in", self.mapped("warehouse_id").ids)]
-    )
-    
-    for record in self:
-        routes = route_obj
-        # Add product and category routes
-        if record.product_id:
-            routes += record.product_id.mapped("route_ids") | \
-                      record.product_id.mapped("categ_id").mapped("total_route_ids")
-        
-        # Add warehouse routes
-        if record.warehouse_id:
-            routes |= routes_by_warehouse[record.warehouse_id.id]
-        
-        # Filter by destination location
-        parents = record.get_parents().ids
-        record.route_ids = routes.filtered(
-            lambda r: any(p.location_dest_id.id in parents for p in r.rule_ids)
+def _prepare_procurement_values(self, group_id=False):
+    return {
+        'date_planned': self.expected_date,
+        'warehouse_id': self.warehouse_id,
+        'stock_request_allocation_ids': self.id,
+        'group_id': group_id or self.procurement_group_id.id or False,
+        'route_ids': self.route_id,
+        'stock_request_id': self.id,
+    }
+```
+
+<Info>
+These values are passed to the procurement group's `run()` method and eventually to `_get_stock_move_values()` in stock rules.
+</Info>
+
+## Stock Move Allocation
+
+The Stock Request module extends stock rules to create allocations:
+
+```python
+class StockRule(models.Model):
+    _inherit = 'stock.rule'
+
+    def _get_stock_move_values(self, product_id, product_qty, product_uom,
+                               location_id, name, origin, company_id, values):
+        result = super()._get_stock_move_values(
+            product_id, product_qty, product_uom, location_id,
+            name, origin, company_id, values
         )
+        if values.get('stock_request_id', False):
+            result['allocation_ids'] = [
+                (0, 0, {
+                    'stock_request_id': values.get('stock_request_id'),
+                    'requested_product_uom_qty': product_qty,
+                })
+            ]
+        return result
 ```
 
-Routes are computed from:
-1. **Product routes**: Routes configured on the product form
-2. **Category routes**: Routes from the product category
-3. **Warehouse routes**: Routes assigned to the warehouse
-4. **Filtered by location**: Only rules that deliver to the request location (or parent locations)
+<Note>
+Every stock move created by a procurement rule for a stock request automatically gets a linked allocation record.
+</Note>
 
-### Manual Route Selection
+## Configuring Routes
 
-Users can force a specific route:
+### Route Basics
+
+Routes define procurement paths and can be:
+
+<CardGroup cols={2}>
+  <Card title="Warehouse Routes" icon="warehouse">
+    Associated with specific warehouses and automatically available for those locations
+  </Card>
+  <Card title="Product Routes" icon="box">
+    Assigned to specific products and available wherever those products are requested
+  </Card>
+  <Card title="Global Routes" icon="globe">
+    Available for all products and locations without restrictions
+  </Card>
+  <Card title="Manual Routes" icon="hand">
+    Must be explicitly selected on stock requests
+  </Card>
+</CardGroup>
+
+### Creating a Transfer Route
+
+<Steps>
+  <Step title="Navigate to Routes">
+    Go to **Inventory > Configuration > Routes**.
+  </Step>
+  
+  <Step title="Create New Route">
+    Click **Create** and enter:
+    
+    - **Name**: Descriptive name (e.g., "Resupply from Warehouse")
+    - **Company**: Select the company
+    - **Warehouse**: Select the warehouse(s) this route applies to
+  </Step>
+  
+  <Step title="Add Rule">
+    In the **Rules** tab, click **Add a line** and configure:
+    
+    - **Name**: Rule description (e.g., "Transfer to Shop Floor")
+    - **Action**: Select "Pull From"
+    - **Operation Type**: Select the internal transfer type
+    - **Source Location**: Where products will be pulled from
+    - **Destination Location**: Where products will be moved to
+    - **Procure Method**: 
+      - "Take From Stock" if source should have stock
+      - "Make To Order" to trigger further procurement
+  </Step>
+  
+  <Step title="Set Procurement Delay">
+    Configure lead time:
+    
+    - **Delay**: Days needed to complete this operation
+  </Step>
+  
+  <Step title="Save Route">
+    Click **Save**.
+  </Step>
+</Steps>
+
+### Example: Multi-Step Transfer Route
+
+To set up a route that moves products through multiple locations:
 
 ```python
-route_id = fields.Many2one(
-    "stock.route",
-    string="Route",
-    domain="[('id', 'in', route_ids)],"
-    ondelete="restrict",
-)
+# Route: Resupply Shop Floor from Main Stock
+route = env['stock.route'].create({
+    'name': 'Resupply Shop Floor',
+    'warehouse_ids': [(4, warehouse.id)],
+    'company_id': company.id,
+})
+
+# Rule 1: Pull to Shop Floor from Quality Control
+env['stock.rule'].create({
+    'name': 'Shop Floor <- Quality Control',
+    'route_id': route.id,
+    'location_src_id': qc_location.id,
+    'location_dest_id': shop_floor_location.id,
+    'action': 'pull',
+    'picking_type_id': warehouse.int_type_id.id,
+    'procure_method': 'make_to_stock',
+    'delay': 1,
+})
+
+# Rule 2: Pull to Quality Control from Main Stock  
+env['stock.rule'].create({
+    'name': 'Quality Control <- Main Stock',
+    'route_id': route.id,
+    'location_src_id': warehouse.lot_stock_id.id,
+    'location_dest_id': qc_location.id,
+    'action': 'pull',
+    'picking_type_id': warehouse.int_type_id.id,
+    'procure_method': 'make_to_stock',
+    'delay': 0,
+})
 ```
 
-The domain ensures only applicable routes can be selected.
+<Info>
+When this route is used, a stock request for the Shop Floor will create two pickings: one from Main Stock to Quality Control, and another from Quality Control to Shop Floor.
+</Info>
 
-## Procurement Execution
+## Route Selection Logic
 
-The main procurement method:
+Stock requests determine available routes based on several factors:
+
+### Warehouse-Based Routes
+
+```python
+@api.depends('warehouse_id', 'location_id', 'stock_request_ids')
+def _compute_route_ids(self):
+    route_obj = self.env['stock.route']
+    # Get routes for the order's warehouse
+    routes = route_obj.search(
+        [('warehouse_ids', 'in', self.mapped('warehouse_id').ids)]
+    )
+    # Filter by location hierarchy
+    parents = self.get_parents().ids
+    valid_routes = [
+        route for route in routes
+        if any(p.location_dest_id.id in parents for p in route.rule_ids)
+    ]
+```
+
+### Location Hierarchy Matching
+
+Routes are available only if at least one rule's destination location matches:
+
+- The exact request location
+- A parent location in the hierarchy
+
+<Info>
+The `get_parents()` method traverses the location tree upward to find all parent locations:
+
+```python
+def get_parents(self):
+    location = self.location_id
+    result = location
+    while location.location_id:
+        location = location.location_id
+        result |= location
+    return result
+```
+</Info>
+
+## Purchase Integration
+
+When the **Stock Request Purchase** module is installed, stock requests can trigger purchase orders.
+
+### Configuring Buy Routes
+
+<Steps>
+  <Step title="Configure Supplier on Product">
+    Go to **Inventory > Products > Products**, open the product, and add a vendor in the **Purchase** tab.
+  </Step>
+  
+  <Step title="Enable Buy Route">
+    In the product form, go to **Inventory** tab and check **Buy** under Routes.
+  </Step>
+  
+  <Step title="Create Stock Request with Buy Route">
+    When creating a stock request, select a buy route. The system will automatically create a purchase order when the request is confirmed.
+  </Step>
+</Steps>
+
+### Purchase Rule Behavior
+
+The purchase integration extends stock rules:
+
+```python
+# In stock_request_purchase module
+class StockRequest(models.Model):
+    _inherit = 'stock.request'
+
+    purchase_ids = fields.One2many(
+        'purchase.order',
+        compute='_compute_purchase_ids',
+        string='Purchase Orders',
+    )
+    purchase_line_ids = fields.Many2many(
+        'purchase.order.line',
+        string='Purchase Order Lines',
+        readonly=True,
+        copy=False,
+    )
+```
+
+<CardGroup cols={2}>
+  <Card title="Automatic PO Creation" icon="cart-plus">
+    Confirming a stock request with a buy route creates a purchase order
+  </Card>
+  <Card title="PO Linking" icon="link">
+    Purchase order lines are linked to stock requests for traceability
+  </Card>
+  <Card title="Smart Buttons" icon="chart-line">
+    View purchase orders directly from the stock request form
+  </Card>
+  <Card title="Cancellation Propagation" icon="ban">
+    Cancelling a stock request can cancel draft purchase orders
+  </Card>
+</CardGroup>
+
+### Viewing Purchase Orders
+
+<Steps>
+  <Step title="Open Stock Request">
+    Navigate to the stock request that triggered purchases.
+  </Step>
+  
+  <Step title="Click Purchase Orders Button">
+    Click the **Purchase Orders** smart button (visible when purchase integration is active).
+  </Step>
+  
+  <Step title="Review and Process">
+    The purchase order list opens, filtered to show only related orders. Process them in the Purchase module.
+  </Step>
+</Steps>
+
+## Manufacturing Integration
+
+When the **Stock Request MRP** module is installed, stock requests can trigger manufacturing orders.
+
+### Configuring Manufacturing Routes
+
+<Steps>
+  <Step title="Configure Bill of Materials">
+    Create a Bill of Materials (BoM) for the product in **Manufacturing > Products > Bills of Materials**.
+  </Step>
+  
+  <Step title="Enable Manufacture Route">
+    In the product form, go to **Inventory** tab and check **Manufacture** under Routes.
+  </Step>
+  
+  <Step title="Create Stock Request with MRP Route">
+    Select a manufacturing route when creating the stock request. The system creates a manufacturing order when confirmed.
+  </Step>
+</Steps>
+
+### Manufacturing Order Tracking
+
+```python
+# In stock_request_mrp module  
+class StockRequest(models.Model):
+    _inherit = 'stock.request'
+
+    production_ids = fields.Many2many(
+        'mrp.production',
+        string='Manufacturing Orders',
+        readonly=True,
+    )
+    production_count = fields.Integer(
+        compute='_compute_production_ids',
+    )
+```
+
+<Info>
+Manufacturing orders created from stock requests are linked via a many-to-many relationship, allowing multiple production orders to fulfill a single request (e.g., split across production runs).
+</Info>
+
+## Using Available Stock First
+
+The **Check available stock first** feature allows the system to use existing stock before triggering procurement:
+
+### Enabling the Feature
+
+<Steps>
+  <Step title="Open Inventory Settings">
+    Navigate to **Inventory > Configuration > Settings**.
+  </Step>
+  
+  <Step title="Enable Check Available Stock First">
+    Under the **Stock Request** section, check **Check available stock first**.
+  </Step>
+  
+  <Step title="Save Configuration">
+    Click **Save**.
+  </Step>
+</Steps>
+
+### How It Works
 
 ```python
 def _action_launch_procurement_rule(self):
-    """
-    Launch procurement group run method with required/custom fields
-    generated by a stock request. Procurement group will launch
-    '_run_move', '_run_buy' or '_run_manufacture' depending on the
-    stock request product rule.
-    """
-    errors = []
     for request in self:
-        if request._skip_procurement():
-            continue
+        # ... quantity checks ...
         
-        # Check if already fulfilled
-        qty = sum(move.product_qty for move in request.move_ids.filtered(
-            lambda r: r.state != "cancel"
-        ))
-        if qty >= request.product_qty:
-            continue
-        
-        # Check stock availability first
+        # Check if available stock should be used first
         if request.company_id.stock_request_check_available_first:
-            if request.product_id.with_context(
+            if request.product_id.sudo().with_context(
                 location=request.location_id.id
             ).free_qty >= request.product_uom_qty:
                 request._action_use_stock_available()
                 continue
         
-        # Prepare procurement values
-        values = request._prepare_procurement_values(
-            group_id=request.procurement_group_id
+        # Otherwise trigger procurement
+        self.env['procurement.group'].run(procurements)
+```
+
+<Steps>
+  <Step title="Available Quantity Check">
+    System checks `free_qty` (available quantity) in the destination location.
+  </Step>
+  
+  <Step title="Immediate Fulfillment">
+    If sufficient stock exists, creates and completes a stock move immediately:
+    
+    ```python
+    def _action_use_stock_available(self):
+        quants = self.env['stock.quant']._gather(
+            self.product_id, self.location_id
         )
-        
-        # Run procurement
-        try:
-            procurements = [
-                self.env["procurement.group"].Procurement(
-                    request.product_id,
-                    request.product_uom_qty,
-                    request.product_uom_id,
-                    request.location_id,
-                    request.name,
-                    request.name,
-                    self.env.company,
-                    values,
-                )
-            ]
-            self.env["procurement.group"].run(procurements)
-        except UserError as error:
-            errors.append(str(error))
-    
-    if errors:
-        raise UserError("\n".join(errors))
-    return True
-```
-
-### Skip Conditions
-
-Procurement is skipped when:
-
-```python
-def _skip_procurement(self):
-    return self.state != "draft" or self.product_id.type not in ("consu", "product")
-```
-
-- Request is not in draft state
-- Product is a service (only storable products and consumables can be procured)
-
-## Using Available Stock First
-
-If configured, the system checks for available stock before running procurement:
-
-```python
-def _action_use_stock_available(self):
-    """Create a stock move with the necessary data and mark it as done."""
-    allocation_model = self.env["stock.request.allocation"]
-    stock_move_model = self.env["stock.move"].sudo()
-    
-    quants = self.env["stock.quant"]._gather(self.product_id, self.location_id)
-    pending_qty = self.product_uom_qty
-    
-    for quant in quants.filtered(lambda x: x.available_quantity >= 0):
-        qty_move = min(pending_qty, quant.available_quantity)
-        if qty_move > 0:
+        for quant in quants.filtered(lambda x: x.available_quantity >= 0):
+            qty_move = min(pending_qty, quant.available_quantity)
             move = stock_move_model.create(self._prepare_stock_move(qty_move))
             move._action_confirm()
-            pending_qty -= qty_move
-            
-            # Create allocation + done move
             allocation_model.create(
                 self._prepare_stock_request_allocation(move)
             )
             move.quantity = move.product_uom_qty
             move.picked = True
             move._action_done()
-```
-
-This creates immediate moves for available quantities, avoiding unnecessary procurement.
-
-<Note>
-Enable this feature in **Settings → Stock Requests → Check Available Stock First**
-</Note>
-
-## Procurement Values
-
-The system passes custom values to procurement rules:
-
-```python
-def _prepare_procurement_values(self, group_id=False):
-    """Prepare specific key for moves or other components that
-    will be created from a procurement rule coming from a stock
-    request. This method could be overridden to add other custom
-    keys that could be used in move/po creation.
-    """
-    return {
-        "date_planned": self.expected_date,
-        "warehouse_id": self.warehouse_id,
-        "stock_request_allocation_ids": self.id,
-        "group_id": group_id or self.procurement_group_id.id or False,
-        "route_ids": self.route_id,
-        "stock_request_id": self.id,
-    }
-```
-
-These values are passed to rules and used to:
-- Schedule transfers for the expected date
-- Link moves back to the request via allocations
-- Associate with the procurement group
-- Respect the selected route
-
-## Stock Move Generation
-
-When a procurement rule creates a stock move, the request ID is embedded:
-
-```python
-# In stock.rule model
-def _get_stock_move_values(
-    self,
-    product_id,
-    product_qty,
-    product_uom,
-    location_id,
-    name,
-    origin,
-    company_id,
-    values,
-):
-    result = super()._get_stock_move_values(
-        product_id, product_qty, product_uom,
-        location_id, name, origin, company_id, values
-    )
-    
-    if values.get("stock_request_id", False):
-        result["allocation_ids"] = [
-            (0, 0, {
-                "stock_request_id": values.get("stock_request_id"),
-                "requested_product_uom_qty": product_qty,
-            })
-        ]
-    return result
-```
-
-This creates the Stock Request Allocation that links the move to the request.
-
-## Transfer Generation Example
-
-Consider a request for 10 units of Product A to Location/Stock:
-
-**Scenario: Pull from Vendor Location**
-
-1. Request confirmed for 10 units to WH/Stock
-2. System finds route: "Buy" with rule "Vendor → WH/Stock"
-3. Rule action is "Buy", so it creates a Purchase Order
-4. When PO is confirmed, incoming move is created
-5. Incoming move is linked to request via allocation
-6. When received, request qty_done updates automatically
-
-**Scenario: Pull from Another Warehouse**
-
-1. Request confirmed for 10 units to WH/Stock
-2. System finds route: "Transfer from WH2"
-3. Rule action is "Pull From", creates internal transfer
-4. Transfer: WH2/Stock → WH/Stock
-5. Transfer linked to request via allocation
-6. When transferred, request is fulfilled
-
-## Route Configuration Tips
-
-<Card title="Product Routes" icon="box">
-  Configure routes on products that are always procured the same way (e.g., always manufactured or always purchased).
-</Card>
-
-<Card title="Warehouse Routes" icon="warehouse">
-  Set warehouse-level routes for location-specific behavior (e.g., resupply from main warehouse).
-</Card>
-
-<Card title="Manual Selection" icon="hand-pointer">
-  Allow users to select routes on requests when multiple fulfillment methods are valid.
-</Card>
-
-## Debugging Procurement Issues
-
-If procurement fails:
-
-<Steps>
-  <Step title="Check Route Availability">
-    Verify that applicable routes exist for the product and destination location:
-    - Check product routes on product form
-    - Check warehouse routes in warehouse configuration
-    - Ensure routes have rules with destination matching the request location
+    ```
   </Step>
   
-  <Step title="Verify Rule Configuration">
-    Ensure rules are properly configured:
-    - Action type (Pull From, Buy, Manufacture)
-    - Source and destination locations
-    - Procurement route assignment
-  </Step>
-  
-  <Step title="Check Product Configuration">
-    Verify product settings:
-    - Product type is Storable or Consumable
-    - Product is not archived
-    - Product has valid vendor if using Buy rules
-    - Product has valid BoM if using Manufacture rules
-  </Step>
-  
-  <Step title="Review Error Messages">
-    The system raises UserError with details when procurement fails. Check:
-    - No rule found for the product/location combination
-    - Missing vendor configuration
-    - Missing BoM for manufacturing
+  <Step title="Fallback to Procurement">
+    If stock is insufficient, falls back to the configured route and triggers normal procurement.
   </Step>
 </Steps>
 
-<Warning>
-If no applicable rule is found, the system will raise an error: "No rule found to fulfill the procurement for Product X to Location Y"
-</Warning>
+<Tip>
+This feature is particularly useful for requests where internal stock should be used preferentially, with procurement (purchase/manufacturing) as a fallback.
+</Tip>
 
-## Integration with Procurement Group
+## Advanced Procurement Scenarios
 
-Requests can share a procurement group:
+### Conditional Route Selection
+
+You can implement logic to select routes dynamically:
 
 ```python
-procurement_group_id = fields.Many2one(
-    "procurement.group",
-    "Procurement Group",
-    help="Moves created through this stock request will be put in this "
-    "procurement group. If none is given, the moves generated by "
-    "procurement rules will be grouped into one big picking.",
-)
+# Example: Select route based on product availability
+if product.qty_available > 0:
+    route = env.ref('stock.route_warehouse0_mto')  # Transfer route
+else:
+    route = env.ref('purchase.route_warehouse0_buy')  # Buy route
+
+stock_request = env['stock.request'].create({
+    'product_id': product.id,
+    'product_uom_qty': 100,
+    'location_id': location.id,
+    'route_id': route.id,
+})
 ```
 
-Benefits:
-- Groups related moves into same transfer
-- Easier tracking of project materials
-- Consolidated reporting
+### Multi-Warehouse Procurement
 
-## Next Steps
+For multi-warehouse setups, configure routes to pull from other warehouses:
 
-- Learn about [Purchase integration](/guides/integrations#purchase-orders) for Buy rules
-- Understand [MRP integration](/guides/integrations#manufacturing-orders) for Manufacture rules
-- Explore [managing orders](/guides/managing-orders) to batch process requests
+```python
+# Route: Transfer from Warehouse B to Warehouse A
+env['stock.rule'].create({
+    'name': 'WH-A <- WH-B',
+    'route_id': inter_warehouse_route.id,
+    'location_src_id': warehouse_b.lot_stock_id.id,
+    'location_dest_id': warehouse_a.lot_stock_id.id,
+    'action': 'pull',
+    'picking_type_id': warehouse_a.int_type_id.id,
+    'procure_method': 'make_to_stock',
+    'warehouse_id': warehouse_a.id,
+})
+```
+
+### Dropshipping via Stock Requests
+
+Configure a route that delivers directly to customers:
+
+```python
+# Dropship route: Buy and deliver directly
+env['stock.rule'].create({
+    'name': 'Dropship to Customer',
+    'route_id': dropship_route.id,
+    'location_src_id': supplier_location.id,
+    'location_dest_id': customer_location.id,
+    'action': 'buy',
+    'picking_type_id': dropship_type.id,
+})
+```
+
+## Troubleshooting Procurement Issues
+
+<Accordion title="No procurement triggered when confirming request">
+  **Possible Causes**:
+  - Product type is "Service" (only consumable and storable products can be procured)
+  - No route selected or configured
+  - Route rules don't match the destination location
+  
+  **Solutions**:
+  - Verify product type in product form
+  - Select an appropriate route on the stock request
+  - Check route rules have destination locations matching the request location hierarchy
+</Accordion>
+
+<Accordion title="Wrong procurement action triggered">
+  **Possible Causes**:
+  - Multiple routes apply and wrong one was selected
+  - Route rules have incorrect action type
+  
+  **Solutions**:
+  - Explicitly select the desired route on the stock request
+  - Review route rules in **Inventory > Configuration > Routes**
+  - Check rule priority and warehouse associations
+</Accordion>
+
+<Accordion title="Stock move created but not linked to request">
+  **Possible Causes**:
+  - Stock rule doesn't include allocation logic
+  - Procurement values don't include `stock_request_id`
+  
+  **Solutions**:
+  - Verify the Stock Request module properly inherits `stock.rule`
+  - Check that `_get_stock_move_values` includes allocation creation
+  - Review allocation records in **Inventory > Operations > Stock Request Allocations**
+</Accordion>
+
+<Accordion title="Route not available in request form">
+  **Possible Causes**:
+  - Route is not associated with the selected warehouse
+  - Route rules don't match the destination location
+  - Route is product-specific and doesn't apply
+  
+  **Solutions**:
+  - Check route configuration in **Inventory > Configuration > Routes**
+  - Verify warehouse association
+  - Ensure at least one rule's destination location matches the request location or its parents
+</Accordion>
+
+## Best Practices
+
+<Tip>
+**Use descriptive route and rule names**: Names like "Resupply Assembly Line from Main Stock" are more maintainable than "Route 1".
+</Tip>
+
+- Configure warehouse-specific routes rather than global routes for better control
+- Set realistic delay values on rules to improve expected date calculations
+- Use procurement groups to keep related moves together in pickings
+- Enable "Check available stock first" for cost savings and faster fulfillment
+- Document custom routes and their intended use cases
+- Test routes with sample stock requests before deploying to production
+- Monitor procurement failures and adjust route configurations accordingly
+- Use multi-step routes for quality control and staged operations
+- Configure appropriate push rules for automatic replenishment scenarios
+- Review route performance periodically and optimize based on actual usage patterns
